@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "NEXA",
+    "slug": "nexa",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0e0e0e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nexa.fitness"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0e0e0e"
+      },
+      "package": "com.nexa.fitness"
+    },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true
+        }
+      ]
+    ]
+  }
+}
