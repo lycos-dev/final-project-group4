@@ -1,37 +1,15 @@
-import React from "react";
-import { View } from "react-native";
-import { ThemeProvider, useTh } from "./src/context/ThemeContext";
-import { NavProvider, useNav } from "./src/context/NavigationContext";
-import { CartProvider } from "./src/context/CartContext";
-import { Screen } from "./src/types";
-
-import HomeScreen from "./src/screens/HomeScreen";
-import CartScreen from "./src/screens/CartScreen";
-import CheckoutScreen from "./src/screens/CheckoutScreen";
-
-const AppShell: React.FC = () => {
-  const { c } = useTh();
-  const { screen } = useNav();
-
-  const renderScreen = () => {
-    switch (screen) {
-      case Screen.Home:     return <HomeScreen />;
-      case Screen.Cart:     return <CartScreen />;
-      case Screen.Checkout: return <CheckoutScreen />;
-    }
-  };
-
-  return <View style={[{ flex: 1 }, { backgroundColor: c.bg }]}>{renderScreen()}</View>;
-};
+// App.tsx
+import React from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <NavProvider>
-        <CartProvider>
-          <AppShell />
-        </CartProvider>
-      </NavProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
