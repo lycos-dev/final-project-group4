@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
@@ -7,24 +7,47 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
+import { Exercise } from '../../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LogWorkout'>;
 
-interface WorkoutExercise {
+interface WorkoutSet {
   id: string;
-  name: string;
-  sets: number;
-  reps?: number;
-  weight?: number;
-  duration?: number;
+  reps: string;
+  weight: string;
+  completed: boolean;
 }
 
-export const LogWorkoutScreen = ({ navigation }: Props) => {
+interface LogExercise extends Exercise {
+  notes: string;
+  restTimer: boolean;
+  sets: WorkoutSet[];
+}
+
+export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   const [startTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
-  const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
+  const [exercises, setExercises] = useState<LogExercise[]>([]);
   const [totalVolume, setTotalVolume] = useState(0);
   const [totalSets, setTotalSets] = useState(0);
+
+  // Initialize exercises from route params
+  useEffect(() => {
+    if (route.params?.exercisesToAdd) {
+      const newExercises = route.params.exercisesToAdd.map((ex) => ({
+        ...ex,
+        notes: '',
+        restTimer: false,
+        sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
+          id: `${ex.id}-set-${i}`,
+          reps: String(ex.defaultReps),
+          weight: '0',
+          completed: false,
+        })),
+      }));
+      setExercises((prev) => [...prev, ...newExercises]);
+    }
+  }, [route.params?.exercisesToAdd]);
 
   // Timer effect
   useEffect(() => {
@@ -37,13 +60,18 @@ export const LogWorkoutScreen = ({ navigation }: Props) => {
 
   // Calculate stats
   useEffect(() => {
-    const volume = exercises.reduce((acc, ex) => {
-      return acc + (ex.weight || 0) * (ex.reps || 0) * ex.sets;
-    }, 0);
-    const sets = exercises.reduce((acc, ex) => acc + ex.sets, 0);
-
+    let volume = 0;
+    let completedSets = 0;
+    exercises.forEach((ex) => {
+      ex.sets.forEach((set) => {
+        if (set.completed) {
+          completedSets++;
+          volume += Number(set.weight) * Number(set.reps);
+        }
+      });
+    });
     setTotalVolume(volume);
-    setTotalSets(sets);
+    setTotalSets(completedSets);
   }, [exercises]);
 
   const formatDuration = (seconds: number) => {
@@ -57,12 +85,62 @@ export const LogWorkoutScreen = ({ navigation }: Props) => {
     return `${minutes}m ${secs}s`;
   };
 
+  const updateSet = (exerciseId: string, setId: string, field: 'reps' | 'weight', value: string) => {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId
+          ? {
+              ...ex,
+              sets: ex.sets.map((s) =>
+                s.id === setId ? { ...s, [field]: value } : s
+              ),
+            }
+          : ex
+      )
+    );
+  };
+
+  const toggleSetCompletion = (exerciseId: string, setId: string) => {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId
+          ? {
+              ...ex,
+              sets: ex.sets.map((s) =>
+                s.id === setId ? { ...s, completed: !s.completed } : s
+              ),
+            }
+          : ex
+      )
+    );
+  };
+
+  const addSet = (exerciseId: string) => {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId
+          ? {
+              ...ex,
+              sets: [
+                ...ex.sets,
+                {
+                  id: `${exerciseId}-set-${ex.sets.length}`,
+                  reps: String(ex.defaultReps),
+                  weight: '0',
+                  completed: false,
+                },
+              ],
+            }
+          : ex
+      )
+    );
+  };
+
   const handleAddExercise = () => {
     navigation.navigate('AddExercise');
   };
 
   const handleFinish = () => {
-    // TODO: Save workout data
     navigation.goBack();
   };
 
@@ -111,7 +189,7 @@ export const LogWorkoutScreen = ({ navigation }: Props) => {
         </View>
       </View>
 
-      {/* Content */}
+      {/* Exercises List */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {exercises.length === 0 ? (
           <EmptyState
@@ -122,11 +200,82 @@ export const LogWorkoutScreen = ({ navigation }: Props) => {
         ) : (
           <View style={styles.exercisesList}>
             {exercises.map((exercise) => (
-              <View key={exercise.id} style={styles.exerciseItem}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={styles.exerciseDetails}>
-                  {exercise.sets} sets × {exercise.reps} reps
-                </Text>
+              <View key={exercise.id} style={styles.exerciseCard}>
+                {/* Exercise Header */}
+                <View style={styles.exerciseHeader}>
+                  <View style={styles.exerciseHeaderContent}>
+                    <View style={styles.exerciseIcon}>
+                      <Ionicons name="barbell" size={32} color={theme.colors.accent} />
+                    </View>
+                    <Text style={styles.exerciseTitle}>{exercise.name}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.menuButton}>
+                    <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.muted} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Notes */}
+                <TextInput
+                  placeholder="Add notes here..."
+                  style={styles.notesInput}
+                  placeholderTextColor={theme.colors.muted}
+                />
+
+                {/* Rest Timer Toggle */}
+                <TouchableOpacity style={styles.restTimerButton}>
+                  <Ionicons name="timer" size={20} color={theme.colors.accent} />
+                  <Text style={styles.restTimerText}>Rest Timer: OFF</Text>
+                </TouchableOpacity>
+
+                {/* Sets Grid */}
+                <View style={styles.setsContainer}>
+                  {/* Header Row */}
+                  <View style={styles.setsHeaderRow}>
+                    <Text style={[styles.setGridCell, styles.setLabel]}>SET</Text>
+                    <Text style={[styles.setGridCell, styles.previousLabel]}>PREVIOUS</Text>
+                    <Text style={[styles.setGridCell, styles.weightLabel]}>KG</Text>
+                    <Text style={[styles.setGridCell, styles.repsLabel]}>REPS</Text>
+                    <View style={styles.setCheckbox} />
+                  </View>
+
+                  {/* Set Rows */}
+                  {exercise.sets.map((set, index) => (
+                    <View key={set.id} style={styles.setRow}>
+                      <Text style={[styles.setGridCell, styles.setNumber]}>{index + 1}</Text>
+                      <Text style={[styles.setGridCell, styles.previousValue]}>-</Text>
+                      <TextInput
+                        style={[styles.setGridCell, styles.setInput]}
+                        value={set.weight}
+                        onChangeText={(val) => updateSet(exercise.id, set.id, 'weight', val)}
+                        keyboardType="decimal-pad"
+                        placeholderTextColor={theme.colors.muted}
+                      />
+                      <TextInput
+                        style={[styles.setGridCell, styles.setInput]}
+                        value={set.reps}
+                        onChangeText={(val) => updateSet(exercise.id, set.id, 'reps', val)}
+                        keyboardType="number-pad"
+                        placeholderTextColor={theme.colors.muted}
+                      />
+                      <TouchableOpacity
+                        style={[styles.setCheckbox, set.completed && styles.setCheckboxChecked]}
+                        onPress={() => toggleSetCompletion(exercise.id, set.id)}
+                      >
+                        {set.completed && (
+                          <Ionicons name="checkmark" size={16} color="#fff" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Add Set Button */}
+                <TouchableOpacity
+                  style={styles.addSetButton}
+                  onPress={() => addSet(exercise.id)}
+                >
+                  <Text style={styles.addSetButtonText}>+ Add Set</Text>
+                </TouchableOpacity>
               </View>
             ))}
           </View>
@@ -222,23 +371,142 @@ const styles = StyleSheet.create({
   },
   exercisesList: {
     gap: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
   },
-  exerciseItem: {
+  exerciseCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  exerciseName: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightSemibold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+  exerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
   },
-  exerciseDetails: {
+  exerciseHeaderContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: theme.colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.md,
+  },
+  exerciseTitle: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.accent,
+  },
+  menuButton: {
+    padding: theme.spacing.sm,
+  },
+  notesInput: {
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    color: theme.colors.text,
     fontSize: theme.font.sizeSm,
+    marginBottom: theme.spacing.md,
+  },
+  restTimerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  restTimerText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightMedium,
+    marginLeft: theme.spacing.sm,
+  },
+  setsContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  setsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  setGridCell: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: theme.font.sizeSm,
+    color: theme.colors.text,
+  },
+  setLabel: {
+    fontWeight: theme.font.weightBold,
     color: theme.colors.muted,
+  },
+  previousLabel: {
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.muted,
+  },
+  weightLabel: {
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.muted,
+  },
+  repsLabel: {
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.muted,
+  },
+  setNumber: {
+    fontWeight: theme.font.weightBold,
+  },
+  previousValue: {
+    color: theme.colors.muted,
+  },
+  setInput: {
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.sm,
+    paddingVertical: theme.spacing.xs,
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  setCheckbox: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: theme.colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setCheckboxChecked: {
+    backgroundColor: theme.colors.accent,
+  },
+  addSetButton: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  },
+  addSetButtonText: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightMedium,
   },
   actionsSection: {
     paddingHorizontal: theme.spacing.lg,

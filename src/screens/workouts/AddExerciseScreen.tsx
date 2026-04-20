@@ -29,6 +29,7 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMuscleModal, setShowMuscleModal] = useState(false);
+  const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     return exercises.filter((e) => {
@@ -47,6 +48,21 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
       newFavorites.add(exerciseId);
     }
     setFavorites(newFavorites);
+  };
+
+  const toggleExerciseSelection = (exerciseId: string) => {
+    const newSelected = new Set(selectedExercises);
+    if (newSelected.has(exerciseId)) {
+      newSelected.delete(exerciseId);
+    } else {
+      newSelected.add(exerciseId);
+    }
+    setSelectedExercises(newSelected);
+  };
+
+  const handleAddExercises = () => {
+    const toAdd = filtered.filter((ex) => selectedExercises.has(ex.id));
+    navigation.navigate('LogWorkout', { exercisesToAdd: toAdd });
   };
 
   const renderHeader = () => (
@@ -126,31 +142,66 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.exerciseItem} activeOpacity={0.7}>
-            <View style={styles.exerciseImage}>
-              <Ionicons
-                name="barbell"
-                size={40}
-                color={theme.colors.accent}
-              />
+          <TouchableOpacity 
+            style={[
+              styles.exerciseItem,
+              selectedExercises.has(item.id) && styles.exerciseItemSelected
+            ]} 
+            activeOpacity={0.7}
+            onPress={() => toggleExerciseSelection(item.id)}
+          >
+            <View style={styles.exerciseContent}>
+              <View style={styles.exerciseImage}>
+                <Ionicons
+                  name="barbell"
+                  size={40}
+                  color={theme.colors.accent}
+                />
+              </View>
+              <View style={styles.exerciseInfo}>
+                <Text style={styles.exerciseName}>{item.name}</Text>
+                <Text style={styles.exerciseMuscle}>{item.muscleGroup}</Text>
+              </View>
             </View>
-            <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>{item.name}</Text>
-              <Text style={styles.exerciseMuscle}>{item.muscleGroup}</Text>
+            <View style={styles.exerciseActions}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(item.id);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={favorites.has(item.id) ? 'heart' : 'heart-outline'}
+                  size={24}
+                  color={favorites.has(item.id) ? theme.colors.accent : theme.colors.muted}
+                />
+              </TouchableOpacity>
+              {selectedExercises.has(item.id) && (
+                <View style={styles.checkmark}>
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                </View>
+              )}
             </View>
-            <TouchableOpacity
-              onPress={() => toggleFavorite(item.id)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons
-                name={favorites.has(item.id) ? 'heart' : 'heart-outline'}
-                size={24}
-                color={favorites.has(item.id) ? theme.colors.accent : theme.colors.muted}
-              />
-            </TouchableOpacity>
           </TouchableOpacity>
         )}
       />
+
+      {/* Floating Add Button */}
+      <View style={styles.floatingButtonContainer}>
+        <TouchableOpacity 
+          style={[
+            styles.addExercisesButton,
+            selectedExercises.size === 0 && styles.addExercisesButtonDisabled
+          ]}
+          onPress={handleAddExercises}
+          disabled={selectedExercises.size === 0}
+        >
+          <Text style={styles.addExercisesButtonText}>
+            + Add {selectedExercises.size || 0} exercise{selectedExercises.size !== 1 ? 's' : ''}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Equipment Modal */}
       <Modal
@@ -365,7 +416,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
+    paddingBottom: 90,
   },
   exerciseItem: {
     flexDirection: 'row',
@@ -376,6 +427,56 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     marginVertical: theme.spacing.xs,
+    borderLeftWidth: 4,
+    borderLeftColor: 'transparent',
+  },
+  exerciseItemSelected: {
+    backgroundColor: theme.colors.bg,
+    borderLeftColor: theme.colors.accent,
+  },
+  exerciseContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  checkmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderTopWidth: 0,
+    paddingBottom: 25,
+  },
+  addExercisesButton: {
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addExercisesButtonDisabled: {
+    opacity: 0.5,
+  },
+  addExercisesButtonText: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
   },
   exerciseImage: {
     width: 60,

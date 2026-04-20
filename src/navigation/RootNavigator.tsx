@@ -11,6 +11,7 @@ import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
 import { AddExerciseScreen } from '../screens/workouts/AddExerciseScreen';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
+import { Exercise } from '../types';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -20,7 +21,7 @@ export type RootStackParamList = {
   ExerciseForm: { exerciseId?: string };
   EditProfile: undefined;
   Settings: undefined;
-  LogWorkout: undefined;
+  LogWorkout: { exercisesToAdd?: Exercise[] };
   AddExercise: undefined;
 };
 
