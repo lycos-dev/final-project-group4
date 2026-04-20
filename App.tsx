@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
+import { AuthProvider } from './src/context/AuthContext';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ExerciseProvider } from './src/context/ExerciseContext';
 import { theme } from './src/theme/theme';
@@ -22,14 +23,16 @@ const navTheme = {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ProfileProvider>
-        <ExerciseProvider>
-          <NavigationContainer theme={navTheme}>
-            <StatusBar style="light" />
-            <RootNavigator />
-          </NavigationContainer>
-        </ExerciseProvider>
-      </ProfileProvider>
+      <AuthProvider>
+        <ProfileProvider>
+          <ExerciseProvider>
+            <NavigationContainer theme={navTheme}>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </NavigationContainer>
+          </ExerciseProvider>
+        </ProfileProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

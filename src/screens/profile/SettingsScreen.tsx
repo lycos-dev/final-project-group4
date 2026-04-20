@@ -4,10 +4,12 @@ import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useProfile } from '../../context/ProfileContext';
+import { useAuth } from '../../context/AuthContext';
 import { theme } from '../../theme/theme';
 
 export const SettingsScreen = () => {
   const { settings, updateSettings } = useProfile();
+  const { logout } = useAuth();
 
   return (
     <Screen scroll>
@@ -55,7 +57,7 @@ export const SettingsScreen = () => {
         </View>
       </Card>
 
-      <Button title="Log Out" variant="destructive" onPress={() => { /* placeholder */ }} style={{ marginTop: theme.spacing.lg }} />
+      <Button title="Log Out" variant="destructive" onPress={logout} style={{ marginTop: theme.spacing.lg }} />
     </Screen>
   );
 };

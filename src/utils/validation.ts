@@ -14,5 +14,10 @@ export const positiveNumber = (v: string, label = 'Value') => {
   return null;
 };
 
+export const validateEmail = (email: string) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 export const maxLength = (v: string, n: number) =>
   v.length > n ? `Must be ${n} characters or fewer` : null;
