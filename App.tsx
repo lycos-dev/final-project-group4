@@ -1,15 +1,35 @@
-// App.tsx
-import React from 'react';
+import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import RootNavigator from './src/navigation/RootNavigator';
+import { ProfileProvider } from './src/context/ProfileContext';
+import { ExerciseProvider } from './src/context/ExerciseContext';
+import { theme } from './src/theme/theme';
+
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: theme.colors.bg,
+    card: theme.colors.surface,
+    text: theme.colors.text,
+    border: theme.colors.border,
+    primary: theme.colors.accent,
+  },
+};
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <ProfileProvider>
+        <ExerciseProvider>
+          <NavigationContainer theme={navTheme}>
+            <StatusBar style="light" />
+            <RootNavigator />
+          </NavigationContainer>
+        </ExerciseProvider>
+      </ProfileProvider>
+    </SafeAreaProvider>
   );
 }
