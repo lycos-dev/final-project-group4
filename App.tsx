@@ -6,6 +6,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ExerciseProvider } from './src/context/ExerciseContext';
+import { WorkoutProvider } from './src/context/WorkoutContext';
 import { theme } from './src/theme/theme';
 
 const navTheme = {
@@ -26,10 +27,12 @@ export default function App() {
       <AuthProvider>
         <ProfileProvider>
           <ExerciseProvider>
-            <NavigationContainer theme={navTheme}>
-              <StatusBar style="light" />
-              <RootNavigator />
-            </NavigationContainer>
+            <WorkoutProvider>
+              <NavigationContainer theme={navTheme}>
+                <StatusBar style="light" />
+                <RootNavigator />
+              </NavigationContainer>
+            </WorkoutProvider>
           </ExerciseProvider>
         </ProfileProvider>
       </AuthProvider>

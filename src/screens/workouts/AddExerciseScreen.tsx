@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { useExercises } from '../../context/ExerciseContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
@@ -23,6 +24,7 @@ const EQUIPMENT_TYPES = [
 
 export const AddExerciseScreen = ({ navigation }: Props) => {
   const { exercises } = useExercises();
+  const { addExercises } = useWorkout();
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
   const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
@@ -62,7 +64,8 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
 
   const handleAddExercises = () => {
     const toAdd = filtered.filter((ex) => selectedExercises.has(ex.id));
-    navigation.navigate('LogWorkout', { exercisesToAdd: toAdd });
+    addExercises(toAdd);
+    navigation.goBack();
   };
 
   const renderHeader = () => (

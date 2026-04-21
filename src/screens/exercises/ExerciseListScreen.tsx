@@ -45,7 +45,7 @@ export const ExerciseListScreen = () => {
           {/* Primary Action Button */}
           <Button
             title="Start New Workout"
-            onPress={() => nav.navigate('LogWorkout')}
+            onPress={() => nav.navigate('LogWorkout', { exercisesToAdd: [] })}
             fullWidth
             style={styles.primaryButton}
           />
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightSemibold,
+    fontWeight: theme.font.weightMedium,
     color: theme.colors.text,
     marginTop: theme.spacing.md,
     textAlign: 'center',
