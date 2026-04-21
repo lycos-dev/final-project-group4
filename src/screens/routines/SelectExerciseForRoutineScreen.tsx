@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { useExercises } from '../../context/ExerciseContext';
-import { useWorkout } from '../../context/WorkoutContext';
+import { useRoutine } from '../../context/RoutineContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'AddExercise'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'SelectExerciseForRoutine'>;
 
 const EQUIPMENT_TYPES = [
   'All Equipment',
@@ -22,9 +22,9 @@ const EQUIPMENT_TYPES = [
   'Treadmill',
 ];
 
-export const AddExerciseScreen = ({ navigation }: Props) => {
+export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
   const { exercises } = useExercises();
-  const { addExercises } = useWorkout();
+  const { addExerciseToRoutine, currentRoutine, setCurrentRoutine, updateRoutine } = useRoutine();
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
   const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
@@ -34,11 +34,14 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
+    console.log('SelectExerciseForRoutine - Total exercises:', exercises.length);
+    console.log('SelectExerciseForRoutine - Exercises:', exercises.map(e => e.name));
     return exercises.filter((e) => {
-      const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = search === '' || e.name.toLowerCase().includes(search.toLowerCase());
       const matchesMuscle = selectedMuscle === 'All Muscles' || e.muscleGroup === selectedMuscle;
       const matchesEquipment = selectedEquipment === 'All Equipment' || e.equipment === selectedEquipment;
-      return matchesSearch && matchesMuscle && matchesEquipment;
+      const passes = matchesSearch && matchesMuscle && matchesEquipment;
+      return passes;
     });
   }, [exercises, search, selectedMuscle, selectedEquipment]);
 
@@ -64,7 +67,36 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
 
   const handleAddExercises = () => {
     const toAdd = filtered.filter((ex) => selectedExercises.has(ex.id));
-    addExercises(toAdd);
+    console.log('Adding exercises to routine:', toAdd.map(e => e.name));
+    console.log('Current routine before add:', currentRoutine);
+    
+    if (!currentRoutine) {
+      console.error('No current routine set');
+      return;
+    }
+
+    const newExercises = [
+      ...currentRoutine.exercises,
+      ...toAdd.map((ex) => ({
+        ...ex,
+        notes: '',
+      })),
+    ];
+
+    const updated = {
+      ...currentRoutine,
+      exercises: newExercises,
+    };
+
+    console.log('Updated routine exercises:', updated.exercises.map(e => e.name));
+
+    // Update using updateRoutine if editing, otherwise just set current
+    if (updated.id && !updated.id.startsWith('temp-routine')) {
+      updateRoutine(updated);
+    } else {
+      setCurrentRoutine(updated);
+    }
+
     navigation.goBack();
   };
 
@@ -132,7 +164,7 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
 
       {/* Section Title */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>All Exercises</Text>
+        <Text style={styles.sectionTitle}>Popular Exercises</Text>
       </View>
     </>
   );

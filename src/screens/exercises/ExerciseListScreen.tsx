@@ -1,16 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ExerciseListItem } from '../../components/exercises/ExerciseListItem';
-import { MuscleGroupFilter } from '../../components/exercises/MuscleGroupFilter';
 import { useExercises } from '../../context/ExerciseContext';
-import { MuscleGroup } from '../../types';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 
@@ -19,16 +16,6 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export const ExerciseListScreen = () => {
   const nav = useNavigation<Nav>();
   const { exercises } = useExercises();
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<MuscleGroup | 'All'>('All');
-
-  const filtered = useMemo(() => {
-    return exercises.filter((e) => {
-      const matchesQ = e.name.toLowerCase().includes(query.toLowerCase());
-      const matchesG = filter === 'All' || e.muscleGroup === filter;
-      return matchesQ && matchesG;
-    });
-  }, [exercises, query, filter]);
 
   return (
     <Screen padded={false}>
@@ -54,11 +41,11 @@ export const ExerciseListScreen = () => {
           <View style={styles.cardsGrid}>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => nav.navigate('ExerciseForm', {})}
+              onPress={() => nav.navigate('CreateRoutine', {})}
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons name="pencil-box-outline" size={40} color={theme.colors.accent} />
-              <Text style={styles.cardTitle}>New Exercise</Text>
+              <Text style={styles.cardTitle}>New Routine</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -73,18 +60,10 @@ export const ExerciseListScreen = () => {
         </View>
 
         {/* Search and Filter Section */}
-        <View style={styles.header}>
-          <Input
-            placeholder="Search exercises..."
-            value={query}
-            onChangeText={setQuery}
-            style={{ marginBottom: 0 }}
-          />
-          <MuscleGroupFilter selected={filter} onSelect={setFilter} />
-        </View>
+        {/* Removed search and filter */}
 
-        {/* Exercise List */}
-        {filtered.length === 0 ? (
+        {/* Exercise List */}}
+        {exercises.length === 0 ? (
           <EmptyState
             icon="barbell-outline"
             title="No exercises found"
@@ -94,7 +73,7 @@ export const ExerciseListScreen = () => {
           />
         ) : (
           <FlatList
-            data={filtered}
+            data={exercises}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             scrollEnabled={false}
@@ -107,10 +86,6 @@ export const ExerciseListScreen = () => {
           />
         )}
       </ScrollView>
-
-      <TouchableOpacity style={styles.fab} onPress={() => nav.navigate('ExerciseForm', {})} activeOpacity={0.85}>
-        <Ionicons name="add" size={28} color={theme.colors.accentText} />
-      </TouchableOpacity>
     </Screen>
   );
 };
@@ -168,29 +143,9 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     textAlign: 'center',
   },
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-  },
   list: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.sm,
-    paddingBottom: 96,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: theme.spacing.xl,
-    right: theme.spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    paddingBottom: theme.spacing.lg,
   },
 });

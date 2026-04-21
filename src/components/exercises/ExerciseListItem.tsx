@@ -22,9 +22,6 @@ export const ExerciseListItem = ({ exercise, onPress }: Props) => (
           {exercise.muscleGroup} • {exercise.equipment}
         </Text>
       </View>
-      <Text style={styles.sets}>
-        {exercise.defaultSets}×{exercise.defaultReps}
-      </Text>
     </View>
   </Card>
 );
@@ -40,5 +37,4 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   name: { color: theme.colors.text, fontSize: theme.font.sizeMd, fontWeight: theme.font.weightBold },
   meta: { color: theme.colors.muted, fontSize: theme.font.sizeSm, marginTop: 2 },
-  sets: { color: theme.colors.accent, fontSize: theme.font.sizeSm, fontWeight: theme.font.weightBold },
 });

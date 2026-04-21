@@ -30,3 +30,16 @@ export interface Settings {
   units: Units;
   notifications: boolean;
 }
+
+export interface RoutineExercise extends Exercise {
+  notes?: string;
+  customSets?: number;
+  customReps?: number;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  createdAt: number;
+  exercises: RoutineExercise[];
+}

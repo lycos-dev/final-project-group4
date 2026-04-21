@@ -9,6 +9,8 @@ import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
 import { SettingsScreen } from '../screens/profile/SettingsScreen';
 import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
 import { AddExerciseScreen } from '../screens/workouts/AddExerciseScreen';
+import { CreateRoutineScreen } from '../screens/routines/CreateRoutineScreen';
+import { SelectExerciseForRoutineScreen } from '../screens/routines/SelectExerciseForRoutineScreen';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 import { Exercise } from '../types';
@@ -23,6 +25,8 @@ export type RootStackParamList = {
   Settings: undefined;
   LogWorkout: { exercisesToAdd?: Exercise[] };
   AddExercise: undefined;
+  CreateRoutine: { routineId?: string };
+  SelectExerciseForRoutine: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -53,6 +57,8 @@ export default function RootNavigator() {
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="LogWorkout" component={LogWorkoutScreen} options={{ headerShown: false }} />
           <Stack.Screen name="AddExercise" component={AddExerciseScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="CreateRoutine" component={CreateRoutineScreen} options={{ presentation: 'modal' }} />
+          <Stack.Screen name="SelectExerciseForRoutine" component={SelectExerciseForRoutineScreen} options={{ title: 'Select Exercise' }} />
         </>
       )}
     </Stack.Navigator>
