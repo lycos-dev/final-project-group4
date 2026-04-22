@@ -10,7 +10,10 @@ export interface Exercise {
   name: string;
   muscleGroup: MuscleGroup;
   equipment: string;
-  instructions: string;
+  /** Brief, ordered coaching cues — one action per step. */
+  steps: string[];
+  /** URL to a demonstration photo or GIF. */
+  imageUrl?: string;
   defaultSets: number;
   defaultReps: number;
 }
