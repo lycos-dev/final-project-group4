@@ -1,8 +1,9 @@
 import React from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BottomTabs from './BottomTabs';
 import { LoginScreen } from '../screens/auth/LoginScreen';
-import { SignupScreen } from '../screens/auth/SignupScreen';
+import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { ExerciseFormScreen } from '../screens/exercises/ExerciseFormScreen';
 import { ExerciseDetailScreen } from '../screens/exercises/ExerciseDetailScreen';
 import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
@@ -17,7 +18,7 @@ import { Exercise } from '../types';
 
 export type RootStackParamList = {
   Login: undefined;
-  Signup: undefined;
+  Register: undefined;
   Tabs: undefined;
   ExerciseDetail: { exerciseId: string };
   ExerciseForm: { exerciseId?: string };
@@ -31,32 +32,43 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const stackScreenOptions = {
+  headerStyle: { backgroundColor: theme.colors.bg },
+  headerTintColor: theme.colors.text,
+  headerTitleStyle: { fontWeight: theme.font.weightBold as 'bold' },
+  contentStyle: { backgroundColor: theme.colors.bg },
+} as const;
+
 export default function RootNavigator() {
   const { isLoggedIn } = useAuth();
 
+  // ── Session is still being restored from AsyncStorage ─────────────────
+  if (isLoggedIn === null) {
+    return (
+      <View style={styles.splash}>
+        <ActivityIndicator size="large" color={theme.colors.accent} />
+      </View>
+    );
+  }
+
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.bg },
-        headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: theme.font.weightBold },
-        contentStyle: { backgroundColor: theme.colors.bg },
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions}>
       {!isLoggedIn ? (
+        // ── Auth Stack ──────────────────────────────────────────────────
         <>
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Login"    component={LoginScreen}    options={{ headerShown: false }} />
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
         </>
       ) : (
+        // ── App Stack ───────────────────────────────────────────────────
         <>
-          <Stack.Screen name="Tabs" component={BottomTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="Tabs"          component={BottomTabs}          options={{ headerShown: false }} />
           <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} options={{ title: 'Exercise' }} />
-          <Stack.Screen name="ExerciseForm" component={ExerciseFormScreen} options={{ presentation: 'modal', title: 'Exercise' }} />
-          <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ presentation: 'modal', title: 'Edit Profile' }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-          <Stack.Screen name="LogWorkout" component={LogWorkoutScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="AddExercise" component={AddExerciseScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ExerciseForm"  component={ExerciseFormScreen}  options={{ presentation: 'modal', title: 'Exercise' }} />
+          <Stack.Screen name="EditProfile"   component={EditProfileScreen}   options={{ presentation: 'modal', title: 'Edit Profile' }} />
+          <Stack.Screen name="Settings"      component={SettingsScreen}      options={{ title: 'Settings' }} />
+          <Stack.Screen name="LogWorkout"    component={LogWorkoutScreen}    options={{ headerShown: false }} />
+          <Stack.Screen name="AddExercise"   component={AddExerciseScreen}   options={{ headerShown: false }} />
           <Stack.Screen name="CreateRoutine" component={CreateRoutineScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="SelectExerciseForRoutine" component={SelectExerciseForRoutineScreen} options={{ title: 'Select Exercise' }} />
         </>
@@ -64,3 +76,12 @@ export default function RootNavigator() {
     </Stack.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Screen } from '../../components/ui/Screen';
@@ -28,6 +28,30 @@ interface FormState {
   goal: string;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Build the initial form state from the stored profile, respecting current units. */
+const formFromProfile = (
+  profile: ReturnType<typeof useProfile>['profile'],
+  isImperial: boolean,
+): FormState => ({
+  name: profile.name,
+  age: String(profile.age),
+  height: isImperial
+    ? String(Math.round(profile.heightCm / 2.54))
+    : String(profile.heightCm),
+  weight: isImperial
+    ? String(Math.round(profile.weightKg * 2.20462))
+    : String(profile.weightKg),
+  goal: profile.goal,
+});
+
+/** Returns true if any field differs from the snapshot taken at mount. */
+const isDirty = (current: FormState, original: FormState): boolean =>
+  (Object.keys(current) as (keyof FormState)[]).some(
+    (k) => current[k].trim() !== original[k].trim(),
+  );
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const EditProfileScreen = () => {
@@ -35,38 +59,19 @@ export const EditProfileScreen = () => {
   const nav = useNavigation();
   const isImperial = settings.units === 'imperial';
 
-  // ── Initialise form values in the active unit system ────────────────────
-  const initialHeight = isImperial
-    ? String(Math.round(profile.heightCm / 2.54))
-    : String(profile.heightCm);
-
-  const initialWeight = isImperial
-    ? String(Math.round(profile.weightKg * 2.20462))
-    : String(profile.weightKg);
-
-  const [form, setForm] = useState<FormState>({
-    name: profile.name,
-    age: String(profile.age),
-    height: initialHeight,
-    weight: initialWeight,
-    goal: profile.goal,
-  });
-
-  // Start with a clean error slate; errors appear as the user types
+  // Snapshot of values at mount — used to detect dirty state
+  const [original] = useState<FormState>(() => formFromProfile(profile, isImperial));
+  const [form, setForm] = useState<FormState>(original);
   const [errors, setErrors] = useState<ProfileFormErrors>({
-    name: null,
-    age: null,
-    height: null,
-    weight: null,
-    goal: null,
+    name: null, age: null, height: null, weight: null, goal: null,
   });
 
-  // ── Real-time single-field validation ────────────────────────────────────
+  const formIsDirty = isDirty(form, original);
+
+  // ── Real-time single-field validation ────────────────────────────────
   const handleChange = useCallback(
     (field: keyof FormState) => (value: string) => {
       setForm((prev) => ({ ...prev, [field]: value }));
-
-      // Validate only the changed field immediately
       let error: string | null = null;
       switch (field) {
         case 'name':   error = validateName(value); break;
@@ -80,14 +85,12 @@ export const EditProfileScreen = () => {
     [isImperial],
   );
 
-  // ── Save ─────────────────────────────────────────────────────────────────
-  const onSave = () => {
-    // Run a full validation pass before saving
+  // ── Persist to context ───────────────────────────────────────────────
+  const doSave = useCallback((): boolean => {
     const finalErrors = validateProfileForm(form, isImperial);
     setErrors(finalErrors);
-    if (hasErrors(finalErrors)) return;
+    if (hasErrors(finalErrors)) return false;
 
-    // Convert back to metric for storage
     const heightCm = isImperial
       ? Math.round(Number(form.height) * 2.54)
       : Number(form.height);
@@ -102,11 +105,54 @@ export const EditProfileScreen = () => {
       weightKg,
       goal: form.goal.trim(),
     });
+    return true;
+  }, [form, isImperial, updateProfile]);
 
-    nav.goBack();
+  const onSave = () => {
+    if (doSave()) nav.goBack();
   };
 
-  // ── Unit labels ──────────────────────────────────────────────────────────
+  // ── Unsaved-changes guard ────────────────────────────────────────────
+  // The `beforeRemove` event fires for ALL removal actions:
+  //   • Cancel button (goBack)
+  //   • iOS swipe-back gesture
+  //   • Android hardware back button
+  //   • Header back chevron
+  useEffect(() => {
+    const unsubscribe = (nav as any).addListener('beforeRemove', (e: any) => {
+      if (!formIsDirty) return; // clean — let it through
+
+      e.preventDefault(); // block navigation
+
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved changes. What would you like to do?',
+        [
+          {
+            text: 'Keep Editing',
+            style: 'cancel',
+          },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => (nav as any).dispatch(e.data.action),
+          },
+          {
+            text: 'Save',
+            onPress: () => {
+              const saved = doSave();
+              // Only navigate away if validation passed
+              if (saved) (nav as any).dispatch(e.data.action);
+            },
+          },
+        ],
+      );
+    });
+
+    return unsubscribe;
+  }, [nav, formIsDirty, doSave]);
+
+  // ── Unit display labels ──────────────────────────────────────────────
   const heightUnit = isImperial ? 'in' : 'cm';
   const weightUnit = isImperial ? 'lb' : 'kg';
 
@@ -137,7 +183,7 @@ export const EditProfileScreen = () => {
       </Card>
 
       {/* ── Section: Body Stats ────────────────────────────────────────── */}
-      <Text style={[styles.sectionLabel, { marginTop: theme.spacing.xl }]}>
+      <Text style={[styles.sectionLabel, styles.sectionGap]}>
         BODY STATS · {isImperial ? 'IMPERIAL' : 'METRIC'}
       </Text>
       <Card style={styles.group}>
@@ -164,9 +210,7 @@ export const EditProfileScreen = () => {
       </Card>
 
       {/* ── Section: Goal ──────────────────────────────────────────────── */}
-      <Text style={[styles.sectionLabel, { marginTop: theme.spacing.xl }]}>
-        FITNESS GOAL
-      </Text>
+      <Text style={[styles.sectionLabel, styles.sectionGap]}>FITNESS GOAL</Text>
       <Card style={styles.group}>
         <Input
           label="Goal"
@@ -196,6 +240,7 @@ export const EditProfileScreen = () => {
         fullWidth
         style={{ marginTop: theme.spacing.xl }}
       />
+      {/* Triggers the beforeRemove listener above when dirty */}
       <Button
         title="Cancel"
         variant="ghost"
@@ -215,8 +260,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: theme.spacing.sm,
   },
+  sectionGap: { marginTop: theme.spacing.xl },
   group: {
-    gap: 0,          // inputs already have their own marginBottom via Input wrap
+    gap: 0,
     padding: theme.spacing.lg,
   },
   unitHint: {
