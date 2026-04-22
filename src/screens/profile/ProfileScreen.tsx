@@ -1,9 +1,10 @@
 import React, { useRef, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView } from 'react-native';
+import { Text, View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
@@ -42,9 +43,6 @@ export const ProfileScreen = () => {
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
 
   return (
-    // Use SafeAreaView directly so we can control top inset precisely.
-    // edges={['left', 'right']} — we intentionally omit 'top' to remove
-    // the unwanted gap; the ProfileHeader visually extends to the top edge.
     <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
       <ScrollView
         ref={scrollRef}
@@ -55,24 +53,11 @@ export const ProfileScreen = () => {
         {/* ── Premium Avatar Header ──────────────────────────────────── */}
         <ProfileHeader profile={profile} subtitle={subtitle} />
 
-        {/* ── Integrated Stats Row ───────────────────────────────────── */}
+        {/* ── Stats Row ─────────────────────────────────────────────── */}
         <View style={styles.statsRow}>
-          <StatCard
-            icon="resize-outline"
-            value={`${heightLabel}`}
-            label={heightUnit}
-            accent
-          />
-          <StatCard
-            icon="barbell-outline"
-            value={`${weightLabel}`}
-            label={weightUnit}
-          />
-          <StatCard
-            icon="calendar-outline"
-            value={`${profile.age}`}
-            label="Age"
-          />
+          <StatCard icon="resize-outline"   value={heightLabel} label={heightUnit} accent />
+          <StatCard icon="barbell-outline"  value={weightLabel} label={weightUnit} />
+          <StatCard icon="calendar-outline" value={`${profile.age}`} label="Age" />
         </View>
 
         {/* ── Fitness Goal ───────────────────────────────────────────── */}
@@ -85,15 +70,34 @@ export const ProfileScreen = () => {
           </Card>
         </View>
 
-        {/* ── Recent Achievements ────────────────────────────────────── */}
+        {/* ── Goals Navigation Button ────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>MY GOALS</Text>
+          <TouchableOpacity
+            style={styles.goalsCard}
+            onPress={() => nav.navigate('Goals')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.goalsIconWrap}>
+              <Ionicons name="trophy-outline" size={22} color={theme.colors.accent} />
+            </View>
+            <View style={styles.goalsText}>
+              <Text style={styles.goalsTitle}>View &amp; Manage Goals</Text>
+              <Text style={styles.goalsSub}>
+                Track weekly targets, weight goals &amp; PRs
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Achievements ───────────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>ACHIEVEMENTS</Text>
           <EmptyPlaceholder
             icon="trophy-outline"
             title="No achievements yet"
-            message={
-              'Complete your first workout to start\nearning badges and milestones.'
-            }
+            message={'Complete your first workout to start\nearning badges and milestones.'}
           />
         </View>
 
@@ -103,9 +107,7 @@ export const ProfileScreen = () => {
           <EmptyPlaceholder
             icon="stats-chart-outline"
             title="No workouts logged"
-            message={
-              'Your weekly activity chart will appear\nhere once you log a session.'
-            }
+            message={'Your weekly activity chart will appear\nhere once you log a session.'}
           />
         </View>
 
@@ -137,7 +139,6 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingBottom: theme.spacing.xxl,
-    // No paddingTop — ProfileHeader sits flush against the status bar area
   },
   statsRow: {
     flexDirection: 'row',
@@ -161,6 +162,39 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeMd,
     lineHeight: 22,
   },
+
+  /* ── Goals Card ────────────────────────────────────────────────────── */
+  goalsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(198, 255, 61, 0.2)',
+    gap: theme.spacing.md,
+  },
+  goalsIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.radius.md,
+    backgroundColor: 'rgba(198, 255, 61, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalsText: { flex: 1 },
+  goalsTitle: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  goalsSub: {
+    fontSize: 12,
+    color: theme.colors.muted,
+  },
+
+  /* ── Bottom Actions ────────────────────────────────────────────────── */
   actions: {
     marginTop: theme.spacing.xxl,
     paddingHorizontal: theme.spacing.lg,

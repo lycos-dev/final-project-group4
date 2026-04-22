@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   View,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   Text,
@@ -11,32 +10,53 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Screen } from '../../components/ui/Screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
-import { EmptyState } from '../../components/ui/EmptyState';
-import { ExerciseListItem } from '../../components/exercises/ExerciseListItem';
-import { useExercises } from '../../context/ExerciseContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+const TIPS: {
+  id: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  sub: string;
+}[] = [
+  {
+    id: '1',
+    icon: 'barbell-outline',
+    title: 'Build your library',
+    sub: 'Add custom exercises to your personal library for quick access during workouts.',
+  },
+  {
+    id: '2',
+    icon: 'repeat-outline',
+    title: 'Create routines',
+    sub: 'Group exercises into routines to stay consistent and track your progress.',
+  },
+  {
+    id: '3',
+    icon: 'trending-up-outline',
+    title: 'Log every session',
+    sub: 'Logging workouts helps you spot trends and keep pushing past plateaus.',
+  },
+];
+
 export const ExerciseListScreen = () => {
   const nav = useNavigation<Nav>();
-  const { exercises } = useExercises();
 
   return (
-    <Screen padded={false}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={styles.topSection}>
           <Text style={styles.title}>Exercises</Text>
 
-          {/* Primary Action Button */}
+          {/* Primary Action */}
           <Button
             title="Start New Workout"
             onPress={() => nav.navigate('LogWorkout', { exercisesToAdd: [] })}
@@ -56,9 +76,7 @@ export const ExerciseListScreen = () => {
               end={{ x: 1, y: 1 }}
               style={styles.libraryGradient}
             >
-              {/* Decorative accent dot */}
               <View style={styles.libraryAccentDot} />
-
               <View style={styles.libraryLeft}>
                 <View style={styles.libraryIconWrap}>
                   <MaterialCommunityIcons
@@ -70,11 +88,10 @@ export const ExerciseListScreen = () => {
                 <View style={styles.libraryText}>
                   <Text style={styles.libraryTitle}>My Custom Library</Text>
                   <Text style={styles.librarySub}>
-                    Your personal exercises & saved routines
+                    Browse &amp; manage all your exercises
                   </Text>
                 </View>
               </View>
-
               <Ionicons
                 name="chevron-forward"
                 size={20}
@@ -103,70 +120,59 @@ export const ExerciseListScreen = () => {
 
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => nav.navigate('CustomLibrary')}
+              onPress={() => nav.navigate('ExerciseForm', {})}
               activeOpacity={0.7}
             >
               <View style={styles.actionCardIcon}>
                 <Ionicons
-                  name="search-outline"
+                  name="add-circle-outline"
                   size={26}
                   color={theme.colors.accent}
                 />
               </View>
-              <Text style={styles.cardTitle}>Explore</Text>
-              <Text style={styles.cardSub}>Browse all exercises</Text>
+              <Text style={styles.cardTitle}>Add Exercise</Text>
+              <Text style={styles.cardSub}>Create a custom move</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Section Header ───────────────────────────────────────────── */}
+        {/* ── Quick Tips ───────────────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
-          <TouchableOpacity
-            onPress={() => nav.navigate('ExerciseForm', {})}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <View style={styles.addButton}>
-              <Ionicons name="add" size={16} color={theme.colors.accentText} />
-              <Text style={styles.addButtonText}>Add</Text>
-            </View>
-          </TouchableOpacity>
+          <Text style={styles.sectionLabel}>QUICK TIPS</Text>
         </View>
 
-        {/* ── Exercise List ─────────────────────────────────────────────── */}
-        {exercises.length === 0 ? (
-          <EmptyState
-            icon="barbell-outline"
-            title="No exercises found"
-            subtitle="Try changing filters or add a new exercise."
-            ctaLabel="Add Exercise"
-            onCtaPress={() => nav.navigate('ExerciseForm', {})}
-          />
-        ) : (
-          <FlatList
-            data={exercises}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <ExerciseListItem
-                exercise={item}
-                onPress={() =>
-                  nav.navigate('ExerciseDetail', { exerciseId: item.id })
-                }
-              />
-            )}
-          />
-        )}
+        <View style={styles.tipsContainer}>
+          {TIPS.map((tip) => (
+            <View key={tip.id} style={styles.tipCard}>
+              <View style={styles.tipIconWrap}>
+                <Ionicons
+                  name={tip.icon}
+                  size={18}
+                  color={theme.colors.accent}
+                />
+              </View>
+              <View style={styles.tipBody}>
+                <Text style={styles.tipTitle}>{tip.title}</Text>
+                <Text style={styles.tipSub}>{tip.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
       </ScrollView>
-    </Screen>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+  },
   scrollContent: {
     paddingBottom: theme.spacing.xxl,
   },
+
+  /* ── Header ────────────────────────────────────────────────────────── */
   topSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
@@ -182,7 +188,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
 
-  /* ── Custom Library Banner ─────────────────────────────────────────── */
+  /* ── Library Banner ────────────────────────────────────────────────── */
   libraryBanner: {
     borderRadius: theme.radius.lg,
     overflow: 'hidden',
@@ -221,9 +227,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  libraryText: {
-    flex: 1,
-  },
+  libraryText: { flex: 1 },
   libraryTitle: {
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
@@ -271,13 +275,11 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
   },
 
-  /* ── Section Header ────────────────────────────────────────────────── */
+  /* ── Tips ──────────────────────────────────────────────────────────── */
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.xl,
   },
   sectionLabel: {
     color: theme.colors.muted,
@@ -285,25 +287,39 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     letterSpacing: 1.2,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 5,
-    borderRadius: theme.radius.pill,
-    gap: 3,
-  },
-  addButtonText: {
-    fontSize: 12,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.accentText,
-  },
-
-  /* ── List ──────────────────────────────────────────────────────────── */
-  list: {
+  tipsContainer: {
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.md,
+  },
+  tipIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radius.md,
+    backgroundColor: 'rgba(198, 255, 61, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  tipBody: { flex: 1 },
+  tipTitle: {
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.text,
+    marginBottom: 3,
+  },
+  tipSub: {
+    fontSize: 12,
+    color: theme.colors.muted,
+    lineHeight: 18,
   },
 });

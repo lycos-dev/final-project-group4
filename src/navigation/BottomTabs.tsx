@@ -3,14 +3,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExerciseListScreen } from '../screens/exercises/ExerciseListScreen';
-import { GoalsScreen } from '../screens/goals/GoalsScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { theme } from '../theme/theme';
 
 export type TabParamList = {
   Home: undefined;
   Library: undefined;
-  Goals: undefined;
   Profile: undefined;
 };
 
@@ -37,17 +35,15 @@ export default function BottomTabs() {
           const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
             Home: 'home-outline',
             Library: 'barbell-outline',
-            Goals: 'trophy-outline',
             Profile: 'person-outline',
           };
           return <Ionicons name={iconMap[route.name]} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'NEXA' }} />
-      <Tab.Screen name="Library" component={ExerciseListScreen} options={{ title: 'Exercises' }} />
-      <Tab.Screen name="Goals" component={GoalsScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Home"    component={HomeScreen}         options={{ title: 'NEXA' }} />
+      <Tab.Screen name="Library" component={ExerciseListScreen} options={{ title: 'Exercises', headerShown: false }} />
+      <Tab.Screen name="Profile" component={ProfileScreen}      options={{ headerShown: false }} />
     </Tab.Navigator>
   );
 }
