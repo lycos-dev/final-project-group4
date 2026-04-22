@@ -1,6 +1,16 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface SignupData {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface SignupData {
   email: string;
   password: string;
   firstName: string;
@@ -8,57 +18,122 @@ interface SignupData {
   age: number;
   weight: number;
   weightUnit: 'kg' | 'lbs';
+  /** Always stored in cm */
   height: number;
 }
 
-interface User extends SignupData {
+export interface User extends Omit<SignupData, 'password'> {
   email: string;
 }
 
 interface AuthContextType {
-  isLoggedIn: boolean;
+  /** Tri-state: null = still restoring session, false = logged out, true = logged in */
+  isLoggedIn: boolean | null;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
 }
 
+// ─── Storage Keys ─────────────────────────────────────────────────────────────
+
+const KEYS = {
+  SESSION: '@nexa/session',
+  USER_PREFIX: '@nexa/user/',
+} as const;
+
+const userKey = (email: string) => `${KEYS.USER_PREFIX}${email.toLowerCase()}`;
+
+// ─── Context ──────────────────────────────────────────────────────────────────
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Store registered users
-let registeredUsers: Map<string, SignupData> = new Map([
-  ['admin@gmail.com', { email: 'admin@gmail.com', password: 'password', firstName: 'Admin', lastName: 'User', age: 30, weight: 70, weightUnit: 'kg', height: 180 }],
-]);
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
-  const login = async (email: string, password: string) => {
-    const userData = registeredUsers.get(email);
+  // ── Restore session on mount ───────────────────────────────────────────
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.SESSION);
+        if (raw) {
+          const stored: User = JSON.parse(raw);
+          setUser(stored);
+          setIsLoggedIn(true);
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setIsLoggedIn(false);
+      }
+    };
+    restoreSession();
+  }, []);
 
-    if (userData && userData.password === password) {
-      setIsLoggedIn(true);
-      setUser({ ...userData, email });
+  // ── login ──────────────────────────────────────────────────────────────
+  const login = useCallback(async (email: string, password: string) => {
+    const raw = await AsyncStorage.getItem(userKey(email));
+
+    // Also allow the built-in demo account even after a fresh install
+    const isDemo =
+      email.toLowerCase() === 'admin@gmail.com' && password === 'password';
+
+    if (!raw && !isDemo) {
+      throw new Error('No account found with that email address.');
+    }
+
+    let userData: SignupData;
+    if (raw) {
+      userData = JSON.parse(raw) as SignupData;
+      if (userData.password !== password) {
+        throw new Error('Incorrect password. Please try again.');
+      }
     } else {
-      throw new Error('Invalid email or password');
+      // Demo account fallback
+      userData = {
+        email: 'admin@gmail.com',
+        password: 'password',
+        firstName: 'Admin',
+        lastName: 'User',
+        age: 30,
+        weight: 70,
+        weightUnit: 'kg',
+        height: 180,
+      };
     }
-  };
 
-  const signup = async (data: SignupData) => {
-    if (registeredUsers.has(data.email)) {
-      throw new Error('Email already registered');
-    }
+    const { password: _pw, ...safeUser } = userData;
+    const sessionUser: User = { ...safeUser, email: userData.email };
 
-    registeredUsers.set(data.email, data);
+    await AsyncStorage.setItem(KEYS.SESSION, JSON.stringify(sessionUser));
+    setUser(sessionUser);
     setIsLoggedIn(true);
-    setUser({ ...data, email: data.email });
-  };
+  }, []);
 
-  const logout = () => {
-    setIsLoggedIn(false);
+  // ── signup ─────────────────────────────────────────────────────────────
+  const signup = useCallback(async (data: SignupData) => {
+    const existing = await AsyncStorage.getItem(userKey(data.email));
+    if (existing) {
+      throw new Error('An account with that email already exists.');
+    }
+
+    await AsyncStorage.setItem(userKey(data.email), JSON.stringify(data));
+
+    const { password: _pw, ...safeUser } = data;
+    const sessionUser: User = { ...safeUser, email: data.email };
+
+    await AsyncStorage.setItem(KEYS.SESSION, JSON.stringify(sessionUser));
+    setUser(sessionUser);
+    setIsLoggedIn(true);
+  }, []);
+
+  // ── logout ─────────────────────────────────────────────────────────────
+  const logout = useCallback(async () => {
+    await AsyncStorage.removeItem(KEYS.SESSION);
     setUser(null);
-  };
+    setIsLoggedIn(false);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ isLoggedIn, user, login, logout, signup }}>
@@ -67,10 +142,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+export const useAuth = (): AuthContextType => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
+  return ctx;
 };

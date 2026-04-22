@@ -10,12 +10,6 @@ import { theme } from '../../theme/theme';
 import { Exercise } from '../../types';
 import { useWorkout, LogExercise, WorkoutSet } from '../../context/WorkoutContext';
 
-interface RoutineExercise extends Exercise {
-  notes?: string;
-  customSets?: number;
-  customReps?: number;
-}
-
 type Props = NativeStackScreenProps<RootStackParamList, 'LogWorkout'>;
 
 interface ActiveRestTimer {
@@ -35,22 +29,26 @@ const REST_TIMER_OPTIONS = [
 ];
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
-  const { exercises, setExercises, clearWorkout, addExercises } = useWorkout();
+  const { exercises, setExercises, addExercises, clearWorkout } = useWorkout();
   const [startTime] = useState(Date.now());
+
+  // Seed exercises from route param (e.g. when launched from ExploreRoutines).
+  // ExploreRoutinesScreen already calls addExercises() + clearWorkout() before
+  // navigating here, so this effect only fires when the caller passes exercises
+  // directly through the param instead (legacy path kept for compatibility).
+  useEffect(() => {
+    const toAdd = route.params?.exercisesToAdd;
+    if (toAdd && toAdd.length > 0) {
+      addExercises(toAdd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [elapsed, setElapsed] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
   const [totalSets, setTotalSets] = useState(0);
   const [showRestTimerModal, setShowRestTimerModal] = useState<string | null>(null);
   const [activeRestTimer, setActiveRestTimer] = useState<ActiveRestTimer | null>(null);
   const [showExerciseMenu, setShowExerciseMenu] = useState<string | null>(null);
-
-  // Initialize exercises from route params (e.g., when starting a routine)
-  useEffect(() => {
-    const routeExercises = route.params?.exercisesToAdd as RoutineExercise[] | undefined;
-    if (routeExercises && routeExercises.length > 0 && exercises.length === 0) {
-      addExercises(routeExercises);
-    }
-  }, [route.params?.exercisesToAdd]);
 
   // Timer effect
   useEffect(() => {
@@ -158,8 +156,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 ...ex.sets,
                 {
                   id: `${exerciseId}-set-${ex.sets.length}`,
-                  reps: '',
-                  weight: '',
+                  reps: String(ex.defaultReps),
+                  weight: '0',
                   completed: false,
                 },
               ],
@@ -311,7 +309,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         style={[styles.setGridCell, styles.setInput]}
                         value={set.weight}
                         onChangeText={(val) => updateSet(exercise.id, set.id, 'weight', val)}
-                        placeholder="0"
                         keyboardType="decimal-pad"
                         placeholderTextColor={theme.colors.muted}
                       />
@@ -319,7 +316,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         style={[styles.setGridCell, styles.setInput]}
                         value={set.reps}
                         onChangeText={(val) => updateSet(exercise.id, set.id, 'reps', val)}
-                        placeholder={String(exercise.defaultReps)}
                         keyboardType="number-pad"
                         placeholderTextColor={theme.colors.muted}
                       />
@@ -875,4 +871,3 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
 });
-

@@ -10,7 +10,10 @@ export interface Exercise {
   name: string;
   muscleGroup: MuscleGroup;
   equipment: string;
-  instructions: string;
+  /** Brief, ordered coaching cues — one action per step. */
+  steps: string[];
+  /** URL to a demonstration photo or GIF. */
+  imageUrl?: string;
   defaultSets: number;
   defaultReps: number;
 }
@@ -49,4 +52,26 @@ export interface Routine {
   name: string;
   createdAt: number;
   exercises: RoutineExercise[];
+  /** Optional folder this routine belongs to. */
+  folderId?: string;
+}
+
+/** A user-created folder that groups routines together. */
+export interface RoutineFolder {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+/** Difficulty level for a preset routine. */
+export type RoutineLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+
+/** A read-only curated routine shown on the Explore screen. */
+export interface PresetRoutine {
+  id: string;
+  name: string;
+  level: RoutineLevel;
+  /** Broad category label shown as metadata (e.g. "Push", "Full Body"). */
+  category: string;
+  exercises: Exercise[];
 }
