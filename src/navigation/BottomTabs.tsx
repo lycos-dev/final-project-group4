@@ -1,19 +1,25 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   Animated,
   Dimensions,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExerciseListScreen } from '../screens/exercises/ExerciseListScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { theme } from '../theme/theme';
+import { useWorkout } from '../context/WorkoutContext';
+import type { RootStackParamList } from './RootNavigator';
 
 export type TabParamList = {
   Home: undefined;
@@ -36,9 +42,9 @@ const BAR_HEIGHT = 64;
 const ICON_SIZE  = 22;
 
 interface TabButtonProps {
-  tab:      typeof TABS[number];
+  tab: typeof TABS[number];
   isActive: boolean;
-  onPress:  () => void;
+  onPress: () => void;
 }
 
 const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
@@ -48,19 +54,16 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(iconScale,    { toValue: isActive ? 1.1 : 1, useNativeDriver: true, tension: 220, friction: 10 }),
+      Animated.spring(iconScale, { toValue: isActive ? 1.1 : 1, useNativeDriver: true, tension: 220, friction: 10 }),
       Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.6, duration: 160, useNativeDriver: true }),
     ]).start();
   }, [isActive]);
 
-  const onPressIn  = () => Animated.spring(pressScale, { toValue: 0.92, useNativeDriver: true, tension: 300, friction: 10 }).start();
-  const onPressOut = () => Animated.spring(pressScale, { toValue: 1,    useNativeDriver: true, tension: 200, friction: 8  }).start();
-
   return (
     <TouchableOpacity
       onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+      onPressIn={() => Animated.spring(pressScale, { toValue: 0.92, useNativeDriver: true, tension: 300, friction: 10 }).start()}
+      onPressOut={() => Animated.spring(pressScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }).start()}
       activeOpacity={1}
       style={[styles.tabBtn, { width: TAB_WIDTH }]}
     >
@@ -72,15 +75,11 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
             color={isActive ? theme.colors.accent : theme.colors.muted}
           />
         </Animated.View>
-
         <Animated.Text
           numberOfLines={1}
           style={[
             styles.tabLabel,
-            {
-              color:   isActive ? theme.colors.accent : theme.colors.muted,
-              opacity: labelOpacity,
-            },
+            { color: isActive ? theme.colors.accent : theme.colors.muted, opacity: labelOpacity },
           ]}
         >
           {tab.label}
@@ -90,64 +89,107 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
   );
 };
 
-interface CustomTabBarProps {
-  state:       any;
-  descriptors: any;
-  navigation:  any;
-}
+/** Floating mini-bar that appears above the tab bar while a workout is in progress. */
+const WorkoutMiniBar = ({ activeRouteName }: { activeRouteName: string }) => {
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { isActive, isMinimized, setMinimized, clearWorkout, getElapsedSeconds, isPaused } = useWorkout();
+  const [, force] = useState(0);
+
+  // tick every second so the duration updates
+  useEffect(() => {
+    if (!isActive || isPaused) return;
+    const i = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(i);
+  }, [isActive, isPaused]);
+
+  const visibleTab = activeRouteName === 'Home' || activeRouteName === 'Library';
+  if (!isActive || !isMinimized || !visibleTab) return null;
+
+  const elapsed = getElapsedSeconds();
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  const text = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  const expand = () => {
+    setMinimized(false);
+    nav.navigate('LogWorkout', {});
+  };
+
+  const askDiscard = () => {
+    Alert.alert(
+      'Discard workout?',
+      'Your in-progress workout will be permanently lost. This cannot be undone.',
+      [
+        { text: 'Keep workout', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => clearWorkout() },
+      ],
+    );
+  };
+
+  return (
+    <View style={styles.miniBarWrap} pointerEvents="box-none">
+      <TouchableOpacity activeOpacity={0.85} onPress={expand} style={styles.miniBar}>
+        <View style={styles.miniDot} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.miniTitle}>Workout in progress</Text>
+          <Text style={styles.miniSub}>
+            {isPaused ? 'Paused · ' : ''}
+            {text}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={expand} style={styles.miniIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-up" size={20} color={theme.colors.accentText} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={askDiscard} style={[styles.miniIconBtn, styles.miniIconBtnGhost]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close" size={18} color={theme.colors.text} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+interface CustomTabBarProps { state: any; descriptors: any; navigation: any; }
 
 const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
-  const insets    = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const activeIdx = state.index;
+  const activeRouteName = state.routes[activeIdx]?.name ?? '';
 
-  const bottomPad = insets.bottom > 0
-    ? insets.bottom
-    : Platform.OS === 'android' ? 8 : 0;
+  const bottomPad = insets.bottom > 0 ? insets.bottom : Platform.OS === 'android' ? 8 : 0;
 
-  const indicatorX = useRef(
-    new Animated.Value(TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16)
-  ).current;
-
+  const indicatorX = useRef(new Animated.Value(TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16)).current;
   useEffect(() => {
     Animated.spring(indicatorX, {
-      toValue:         TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16,
+      toValue: TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16,
       useNativeDriver: true,
-      tension:         200,
-      friction:        16,
+      tension: 200,
+      friction: 16,
     }).start();
   }, [activeIdx]);
 
   return (
-    <View
-      style={[
-        styles.barWrapper,
-        { minHeight: BAR_HEIGHT + bottomPad, paddingBottom: bottomPad },
-      ]}
-    >
-      <View style={styles.topDivider} />
-
-      <Animated.View
-        style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
-      />
-
-      <View style={styles.tabsRow}>
-        {TABS.map((tab, i) => (
-          <TabButton
-            key={tab.name}
-            tab={tab}
-            isActive={activeIdx === i}
-            onPress={() => {
-              const event = navigation.emit({
-                type:              'tabPress',
-                target:            state.routes[i].key,
-                canPreventDefault: true,
-              });
-              if (!event.defaultPrevented) {
-                navigation.navigate(state.routes[i].name);
-              }
-            }}
-          />
-        ))}
+    <View>
+      <WorkoutMiniBar activeRouteName={activeRouteName} />
+      <View style={[styles.barWrapper, { minHeight: BAR_HEIGHT + bottomPad, paddingBottom: bottomPad }]}>
+        <View style={styles.topDivider} />
+        <Animated.View style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
+        <View style={styles.tabsRow}>
+          {TABS.map((tab, i) => (
+            <TabButton
+              key={tab.name}
+              tab={tab}
+              isActive={activeIdx === i}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: state.routes[i].key,
+                  canPreventDefault: true,
+                });
+                if (!event.defaultPrevented) navigation.navigate(state.routes[i].name);
+              }}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -158,12 +200,9 @@ export default function BottomTabs() {
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        headerStyle:      { backgroundColor: theme.colors.bg },
-        headerTintColor:  theme.colors.text,
-        headerTitleStyle: {
-          fontWeight: theme.font.weightBold,
-          fontSize:   theme.font.sizeLg,
-        },
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: { fontWeight: theme.font.weightBold, fontSize: theme.font.sizeLg },
       }}
     >
       <Tab.Screen name="Home"    component={HomeScreen}         options={{ title: 'NEXA' }} />
@@ -176,49 +215,68 @@ export default function BottomTabs() {
 const styles = StyleSheet.create({
   barWrapper: {
     backgroundColor: theme.colors.surface,
-    shadowColor:     '#000',
-    shadowOpacity:   0.12,
-    shadowRadius:    12,
-    shadowOffset:    { width: 0, height: -3 },
-    elevation:       12,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 12,
   },
-  topDivider: {
-    height:          1,
-    backgroundColor: theme.colors.border,
-    opacity:         0.4,
-  },
+  topDivider: { height: 1, backgroundColor: theme.colors.border, opacity: 0.4 },
   indicator: {
-    position:        'absolute',
-    top:             0,
-    width:           32,
-    height:          3,
-    borderRadius:    2,
+    position: 'absolute',
+    top: 0,
+    width: 32,
+    height: 3,
+    borderRadius: 2,
     backgroundColor: theme.colors.accent,
   },
-  tabsRow: {
+  tabsRow: { flexDirection: 'row', alignItems: 'center', height: BAR_HEIGHT },
+  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_HEIGHT },
+  tabInner: { alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 10 },
+  iconWrap: { marginBottom: 3 },
+  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3, textAlign: 'center' },
+
+  /* ── Floating mini-bar ─────────────────────────────────────────────── */
+  miniBarWrap: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  miniBar: {
     flexDirection: 'row',
-    alignItems:    'center',
-    height:        BAR_HEIGHT,
+    alignItems: 'center',
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  tabBtn: {
-    flex:           1,
-    alignItems:     'center',
+  miniDot: {
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: theme.colors.danger,
+  },
+  miniTitle: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
+  miniSub: {
+    color: theme.colors.accentText,
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 1,
+  },
+  miniIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
     justifyContent: 'center',
-    height:         BAR_HEIGHT,
+    backgroundColor: 'rgba(0,0,0,0.18)',
   },
-  tabInner: {
-    alignItems:        'center',
-    justifyContent:    'center',
-    paddingVertical:   4,
-    paddingHorizontal: 10,
-  },
-  iconWrap: {
-    marginBottom: 3,
-  },
-  tabLabel: {
-    fontSize:      11,
-    fontWeight:    '600',
-    letterSpacing: 0.3,
-    textAlign:     'center',
-  },
+  miniIconBtnGhost: { backgroundColor: 'rgba(0,0,0,0.10)' },
 });
