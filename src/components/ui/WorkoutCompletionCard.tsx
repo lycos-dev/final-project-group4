@@ -26,7 +26,7 @@ export const WorkoutCompletionCard = ({
   timeMinutes,
   volumeKg,
   exercises,
-  timestamp = 'just now',
+  timestamp,
 }: Props) => {
   return (
     <Card>
@@ -40,9 +40,11 @@ export const WorkoutCompletionCard = ({
           </View>
           <View>
             <Text style={styles.username}>{username}</Text>
-            <View style={styles.metaRow}>
-              <Text style={styles.timestamp}>{timestamp}</Text>
-            </View>
+            {timestamp ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.timestamp}>{timestamp}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
         <MaterialCommunityIcons

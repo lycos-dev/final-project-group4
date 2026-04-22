@@ -14,7 +14,7 @@ const formatTimestamp = (completedAt: number): string => {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return 'just now';
+  if (diffMins < 1) return '';
   if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
   if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
   return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
@@ -22,17 +22,11 @@ const formatTimestamp = (completedAt: number): string => {
 
 export const HomeScreen = () => {
   const { profile } = useProfile();
-  const { getRecentWorkout } = useWorkout();
-  const recentWorkout = getRecentWorkout();
-
-  const exerciseDetails = useMemo(() => {
-    if (!recentWorkout) return [];
-    return recentWorkout.exercises.map((ex) => ({
-      name: ex.name,
-      sets: ex.sets.filter((s) => s.completed).length || ex.sets.length,
-      image: (ex as any).image,
-    }));
-  }, [recentWorkout]);
+  const { completedWorkouts } = useWorkout();
+  const recentWorkouts = useMemo(
+    () => [...completedWorkouts].sort((a, b) => b.completedAt - a.completedAt),
+    [completedWorkouts]
+  );
 
   return (
     <Screen scroll>
@@ -44,22 +38,34 @@ export const HomeScreen = () => {
         <StreakCounter />
       </View>
 
-      {/* Recent Workout Section */}
-      {recentWorkout ? (
+      {/* Recent Workouts Section */}
+      {recentWorkouts.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Workout</Text>
-          <WorkoutCompletionCard
-            username={profile.name}
-            routineName={recentWorkout.routineName}
-            timeMinutes={recentWorkout.durationMinutes}
-            volumeKg={recentWorkout.totalVolumeKg}
-            exercises={exerciseDetails}
-            timestamp={formatTimestamp(recentWorkout.completedAt)}
-          />
+          <Text style={styles.sectionTitle}>Recent Workouts</Text>
+          {recentWorkouts.map((workout) => {
+            const exerciseDetails = workout.exercises.map((ex) => ({
+              name: ex.name,
+              sets: ex.sets.filter((s) => s.completed).length || ex.sets.length,
+              image: (ex as any).image,
+            }));
+
+            return (
+              <View key={workout.id} style={styles.workoutCardSpacing}>
+                <WorkoutCompletionCard
+                  username={profile.name}
+                  routineName={workout.routineName}
+                  timeMinutes={workout.durationMinutes}
+                  volumeKg={workout.totalVolumeKg}
+                  exercises={exerciseDetails}
+                  timestamp={formatTimestamp(workout.completedAt)}
+                />
+              </View>
+            );
+          })}
         </View>
       ) : (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Workout</Text>
+          <Text style={styles.sectionTitle}>Recent Workouts</Text>
           <View style={styles.emptyWorkout}>
             <Text style={styles.emptyWorkoutText}>No workouts yet. Finish a workout to see it here!</Text>
           </View>
@@ -74,6 +80,7 @@ const styles = StyleSheet.create({
   name: { color: theme.colors.text, fontSize: theme.font.sizeDisplay, fontWeight: theme.font.weightBlack, marginBottom: theme.spacing.lg },
   section: { marginBottom: theme.spacing.lg },
   sectionTitle: { color: theme.colors.text, fontSize: theme.font.sizeLg, fontWeight: theme.font.weightBold, marginBottom: theme.spacing.md },
+  workoutCardSpacing: { marginBottom: theme.spacing.md },
   emptyWorkout: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
