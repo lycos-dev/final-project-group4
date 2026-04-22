@@ -5,12 +5,13 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useExercises } from '../../context/ExerciseContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
@@ -19,28 +20,25 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export const CustomLibraryScreen = () => {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { exercises } = useExercises();
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+  const onBack = () => {
+    if (nav.canGoBack()) nav.goBack();
+    else nav.navigate('Tabs');
+  };
 
-      {/* ── Sticky Header ──────────────────────────────────────────────── */}
+  // Everything that used to be sticky now lives inside the list header so it
+  // scrolls with the content. Only the floating back button stays pinned.
+  const ListHeader = (
+    <>
       <LinearGradient
         colors={['#1C2A00', '#182200', '#0e1500']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 56 }]}
       >
         <View style={styles.heroOrb} />
-
-        {/* Back button — uses nav.goBack(), same pattern as other screens */}
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => nav.goBack()}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
 
         <View style={styles.heroContent}>
           <View style={styles.heroIcon}>
@@ -74,7 +72,6 @@ export const CustomLibraryScreen = () => {
         </View>
       </LinearGradient>
 
-      {/* ── "Create New Exercise" — visually separated from the list ──── */}
       <View style={styles.createSection}>
         <TouchableOpacity
           style={styles.createBtn}
@@ -89,19 +86,34 @@ export const CustomLibraryScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Divider label ──────────────────────────────────────────────── */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderText}>MY EXERCISES</Text>
         <Text style={styles.sectionHeaderCount}>{exercises.length}</Text>
       </View>
+    </>
+  );
 
-      {/* ── Scrollable Exercise List ───────────────────────────────────── */}
+  return (
+    <View style={styles.safe}>
+      {/* Sticky back button — sits above everything, always tappable */}
+      <SafeAreaView edges={['top']} style={styles.backWrap} pointerEvents="box-none">
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+        </TouchableOpacity>
+      </SafeAreaView>
+
+      {/* Single scrollable list — header + create button + list rows scroll together */}
       <FlatList
         data={exercises}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        bounces={false}
         ListEmptyComponent={
           <View style={styles.empty}>
             <MaterialCommunityIcons
@@ -146,20 +158,38 @@ export const CustomLibraryScreen = () => {
           </TouchableOpacity>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: theme.colors.bg,
+  safe: { flex: 1, backgroundColor: theme.colors.bg },
+
+  /* ── Sticky back button ────────────────────────────────────────────── */
+  backWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.radius.md,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginTop: Platform.OS === 'android' ? 8 : 4,
   },
 
-  /* ── Header ────────────────────────────────────────────────────────── */
+  /* ── Header (now scrolls) ──────────────────────────────────────────── */
   header: {
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
     overflow: 'hidden',
   },
@@ -172,20 +202,7 @@ const styles = StyleSheet.create({
     right: -50,
     top: -60,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.radius.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  heroContent: {
-    marginBottom: theme.spacing.lg,
-  },
+  heroContent: { marginBottom: theme.spacing.lg },
   heroIcon: {
     width: 52,
     height: 52,
@@ -203,10 +220,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 4,
   },
-  heroSub: {
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-  },
+  heroSub: { fontSize: theme.font.sizeSm, color: theme.colors.muted },
   heroStats: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -224,7 +238,7 @@ const styles = StyleSheet.create({
   heroStatLabel: { fontSize: 11, color: theme.colors.muted, marginTop: 2 },
   heroStatDivider: { width: 1, backgroundColor: theme.colors.border },
 
-  /* ── Create New Exercise — solid accent button, clearly separate ──── */
+  /* ── Create button ─────────────────────────────────────────────────── */
   createSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
@@ -254,7 +268,7 @@ const styles = StyleSheet.create({
     color: theme.colors.accentText,
   },
 
-  /* ── Section header divider ────────────────────────────────────────── */
+  /* ── Section header ────────────────────────────────────────────────── */
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -278,12 +292,8 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightMedium,
   },
 
-  /* ── Exercise List ─────────────────────────────────────────────────── */
-  listContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xs,
-    paddingBottom: theme.spacing.xxl,
-  },
+  /* ── List rows ─────────────────────────────────────────────────────── */
+  listContent: { paddingBottom: theme.spacing.xxl },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -291,6 +301,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.sm,
+    marginHorizontal: theme.spacing.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -314,10 +325,10 @@ const styles = StyleSheet.create({
   },
   listMeta: { color: theme.colors.muted, fontSize: 12 },
 
-  /* ── Empty State ───────────────────────────────────────────────────── */
   empty: {
     alignItems: 'center',
     paddingVertical: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
   emptyTitle: {

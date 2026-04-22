@@ -1,12 +1,23 @@
 import React, { useLayoutEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Pressable,
+} from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { Chip } from '../../components/ui/Chip';
 import { useExercises } from '../../context/ExerciseContext';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 import { required, numberInRange, maxLength } from '../../utils/validation';
@@ -16,22 +27,9 @@ import { theme } from '../../theme/theme';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseForm'>;
 type R = RouteProp<RootStackParamList, 'ExerciseForm'>;
 
-/**
- * Convert a steps array → single textarea string (one step per line).
- * Empty array → empty string.
- */
 const stepsToText = (steps: string[]): string => steps.join('\n');
-
-/**
- * Split a textarea string by newlines → trimmed, non-empty steps array.
- */
 const textToSteps = (text: string): string[] =>
-  text
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-// ─── Component ────────────────────────────────────────────────────────────────
+  text.split('\n').map((s) => s.trim()).filter(Boolean);
 
 export const ExerciseFormScreen = () => {
   const nav = useNavigation<Nav>();
@@ -40,27 +38,26 @@ export const ExerciseFormScreen = () => {
 
   const editing = params?.exerciseId ? getById(params.exerciseId) : undefined;
 
-  const [name, setName]             = useState(editing?.name ?? '');
+  const [name, setName]               = useState(editing?.name ?? '');
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup>(editing?.muscleGroup ?? 'Chest');
-  const [equipment, setEquipment]   = useState(editing?.equipment ?? '');
-  const [imageUrl, setImageUrl]     = useState(editing?.imageUrl ?? '');
-  /** Steps displayed as a single multiline block; split on save. */
-  const [stepsText, setStepsText]   = useState(stepsToText(editing?.steps ?? []));
-  const [sets, setSets]             = useState(String(editing?.defaultSets ?? 3));
-  const [reps, setReps]             = useState(String(editing?.defaultReps ?? 10));
+  const [equipment, setEquipment]     = useState(editing?.equipment ?? '');
+  const [imageUrl, setImageUrl]       = useState(editing?.imageUrl ?? '');
+  const [stepsText, setStepsText]     = useState(stepsToText(editing?.steps ?? []));
+  const [sets, setSets]               = useState(String(editing?.defaultSets ?? 3));
+  const [reps, setReps]               = useState(String(editing?.defaultReps ?? 10));
 
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [muscleOpen, setMuscleOpen] = useState(false);
 
   useLayoutEffect(() => {
     nav.setOptions({ title: editing ? 'Edit Exercise' : 'New Exercise' });
   }, [nav, editing]);
 
-  // ── Validation ────────────────────────────────────────────────────────
   const validate = () => {
     const e: Record<string, string | null> = {
       name:      required(name) ?? maxLength(name, 60, 'Name'),
       equipment: required(equipment) ?? maxLength(equipment, 40, 'Equipment'),
-      imageUrl:  imageUrl ? maxLength(imageUrl, 500, 'Image URL') : null,
+      imageUrl:  imageUrl ? maxLength(imageUrl, 1000, 'Image') : null,
       stepsText: stepsText ? maxLength(stepsText, 1000, 'Steps') : null,
       sets:      numberInRange(sets, 1, 20, 'Sets'),
       reps:      numberInRange(reps, 1, 200, 'Reps'),
@@ -69,10 +66,8 @@ export const ExerciseFormScreen = () => {
     return Object.values(e).every((v) => !v);
   };
 
-  // ── Save ─────────────────────────────────────────────────────────────
   const onSave = () => {
     if (!validate()) return;
-
     const payload = {
       name: name.trim(),
       muscleGroup,
@@ -82,18 +77,39 @@ export const ExerciseFormScreen = () => {
       defaultSets: Number(sets),
       defaultReps: Number(reps),
     };
-
-    if (editing) {
-      updateExercise({ ...editing, ...payload });
-    } else {
-      addExercise(payload);
-    }
+    if (editing) updateExercise({ ...editing, ...payload });
+    else addExercise(payload);
     nav.goBack();
   };
 
+  const pickImageFromLibrary = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Photo access needed',
+          'Allow access to your photo library to upload an image.'
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setImageUrl(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Could not open photos', String(err));
+    }
+  };
+
+  const clearImage = () => setImageUrl('');
+
   return (
     <Screen scroll>
-      {/* ── Basic Info ───────────────────────────────────────────────────── */}
+      {/* ── Basic Info ─────────────────────────────────────────────────── */}
       <Text style={styles.sectionLabel}>EXERCISE INFO</Text>
       <Card style={styles.card}>
         <Input
@@ -109,25 +125,57 @@ export const ExerciseFormScreen = () => {
           value={equipment}
           onChangeText={setEquipment}
           error={errors.equipment}
-          placeholder="e.g. Barbell"
+          placeholder="e.g. Barbell, Dumbbell, Bodyweight…"
           autoCapitalize="words"
+          hint="Type whatever you use — your choice"
         />
       </Card>
 
-      {/* ── Muscle Group Picker ──────────────────────────────────────────── */}
+      {/* ── Muscle Group dropdown ──────────────────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>MUSCLE GROUP</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
+      <TouchableOpacity
+        style={styles.dropdown}
+        onPress={() => setMuscleOpen(true)}
+        activeOpacity={0.75}
       >
-        {MUSCLE_GROUPS.map((g) => (
-          <Chip key={g} label={g} active={muscleGroup === g} onPress={() => setMuscleGroup(g)} />
-        ))}
-      </ScrollView>
+        <Text style={styles.dropdownValue}>{muscleGroup}</Text>
+        <Ionicons name="chevron-down" size={18} color={theme.colors.muted} />
+      </TouchableOpacity>
 
-      {/* ── Media ────────────────────────────────────────────────────────── */}
+      <Modal
+        visible={muscleOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMuscleOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setMuscleOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Choose muscle group</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {MUSCLE_GROUPS.map((g) => {
+                const active = g === muscleGroup;
+                return (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.option, active && styles.optionActive]}
+                    onPress={() => {
+                      setMuscleGroup(g);
+                      setMuscleOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.optionText, active && styles.optionTextActive]}>{g}</Text>
+                    {active && (
+                      <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Media — URL or upload from library ─────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>MEDIA</Text>
       <Card style={styles.card}>
         <Input
@@ -139,11 +187,30 @@ export const ExerciseFormScreen = () => {
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
-          hint="Paste a direct link to a photo or animated GIF"
+          hint="Paste a link, or upload from your photos below"
         />
+
+        <TouchableOpacity
+          style={styles.uploadBtn}
+          onPress={pickImageFromLibrary}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="image-outline" size={18} color={theme.colors.accent} />
+          <Text style={styles.uploadBtnText}>Upload from Photos</Text>
+        </TouchableOpacity>
+
+        {imageUrl ? (
+          <View style={styles.previewImageWrap}>
+            <Image source={{ uri: imageUrl }} style={styles.previewImage} resizeMode="cover" />
+            <TouchableOpacity style={styles.removeImageBtn} onPress={clearImage}>
+              <Ionicons name="close" size={14} color={theme.colors.text} />
+              <Text style={styles.removeImageText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </Card>
 
-      {/* ── Steps ────────────────────────────────────────────────────────── */}
+      {/* ── Steps ──────────────────────────────────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>INSTRUCTIONS</Text>
       <Card style={styles.card}>
         <Input
@@ -157,7 +224,6 @@ export const ExerciseFormScreen = () => {
           placeholder={'Type each step on a new line, e.g.:\nGrip bar just outside shoulders.\nLower bar to mid-chest.\nDrive up explosively.'}
           hint="One coaching cue per line — each line becomes a numbered step"
         />
-        {/* Live step preview */}
         {stepsText.trim().length > 0 && (
           <View style={styles.previewWrap}>
             <Text style={styles.previewLabel}>Preview · {textToSteps(stepsText).length} step(s)</Text>
@@ -173,7 +239,7 @@ export const ExerciseFormScreen = () => {
         )}
       </Card>
 
-      {/* ── Default Volume ───────────────────────────────────────────────── */}
+      {/* ── Default Volume ─────────────────────────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>DEFAULT VOLUME</Text>
       <Card style={styles.card}>
         <View style={styles.volumeRow}>
@@ -201,7 +267,6 @@ export const ExerciseFormScreen = () => {
         </View>
       </Card>
 
-      {/* ── Actions ──────────────────────────────────────────────────────── */}
       <Button
         title={editing ? 'Save Changes' : 'Add Exercise'}
         onPress={onSave}
@@ -231,17 +296,101 @@ const styles = StyleSheet.create({
 
   card: { padding: theme.spacing.lg },
 
-  chipScroll: { marginBottom: 0 },
-  chipRow: { flexDirection: 'row', paddingBottom: theme.spacing.xs },
+  /* Dropdown */
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.lg,
+    minHeight: 48,
+  },
+  dropdownValue: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightMedium,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.lg,
+  },
+  modalSheet: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  modalTitle: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.radius.md,
+  },
+  optionActive: { backgroundColor: 'rgba(198, 255, 61, 0.08)' },
+  optionText: { color: theme.colors.text, fontSize: theme.font.sizeMd },
+  optionTextActive: { color: theme.colors.accent, fontWeight: theme.font.weightBold },
 
-  stepsInput: {
-    minHeight: 130,
-    textAlignVertical: 'top',
-    fontFamily: undefined, // keep system font
-    lineHeight: 22,
+  /* Upload + preview */
+  uploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: 'rgba(198, 255, 61, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(198, 255, 61, 0.25)',
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.md,
+    marginTop: theme.spacing.xs,
+  },
+  uploadBtnText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 0.3,
+  },
+  previewImageWrap: { marginTop: theme.spacing.md, alignItems: 'flex-start' },
+  previewImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  removeImageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  removeImageText: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeXs,
+    fontWeight: theme.font.weightMedium,
   },
 
-  // Step preview inside the card
+  /* Steps */
+  stepsInput: { minHeight: 130, textAlignVertical: 'top', lineHeight: 22 },
   previewWrap: {
     marginTop: theme.spacing.md,
     borderTopWidth: 1,
@@ -256,11 +405,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: theme.spacing.xs,
   },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: theme.spacing.sm,
-  },
+  previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm },
   previewBadge: {
     width: 22,
     height: 22,
@@ -284,7 +429,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Volume row
   volumeRow: { flexDirection: 'row', alignItems: 'flex-start' },
   volumeField: { flex: 1 },
   volumeDivider: { width: theme.spacing.md },

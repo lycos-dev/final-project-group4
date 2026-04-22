@@ -32,8 +32,6 @@ export type RootStackParamList = {
   Goals: undefined;
   LogWorkout: { exercisesToAdd?: Exercise[] };
   AddExercise: undefined;
-  // targetFolderId — when set, the routine is pre-assigned to that folder
-  // and the folder picker is hidden (user came from inside a folder)
   CreateRoutine: { routineId?: string; targetFolderId?: string };
   SelectExerciseForRoutine: undefined;
 };
@@ -68,9 +66,14 @@ export default function RootNavigator() {
       ) : (
         <>
           <Stack.Screen name="Tabs"           component={BottomTabs}                    options={{ headerShown: false }} />
-          <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen}          options={{ title: 'Exercise' }} />
+          <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen}          options={{ title: 'Exercise', gestureEnabled: false }} />
           <Stack.Screen name="ExerciseForm"   component={ExerciseFormScreen}            options={{ presentation: 'modal', title: 'Exercise' }} />
-          <Stack.Screen name="CustomLibrary"  component={CustomLibraryScreen}           options={{ headerShown: false }} />
+          {/* CustomLibrary: disable iOS swipe-back gesture so the manual back button always works */}
+          <Stack.Screen
+            name="CustomLibrary"
+            component={CustomLibraryScreen}
+            options={{ headerShown: false, gestureEnabled: false, animation: 'slide_from_right' }}
+          />
           <Stack.Screen name="ExploreRoutines" component={ExploreRoutinesScreen}        options={{ headerShown: false }} />
           <Stack.Screen name="Goals"          component={GoalsScreen}                   options={{ title: 'Goals' }} />
           <Stack.Screen name="EditProfile"    component={EditProfileScreen}             options={{ presentation: 'modal', title: 'Edit Profile' }} />
