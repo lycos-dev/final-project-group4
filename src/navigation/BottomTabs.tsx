@@ -1,7 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View,
-  Text,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -10,7 +9,6 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExerciseListScreen } from '../screens/exercises/ExerciseListScreen';
@@ -26,131 +24,94 @@ export type TabParamList = {
 const Tab = createBottomTabNavigator<TabParamList>();
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ── Tab config ────────────────────────────────────────────────────────────────
 const TABS = [
   { name: 'Home',    label: 'Home',      icon: 'home',    iconOutline: 'home-outline'    },
   { name: 'Library', label: 'Exercises', icon: 'barbell', iconOutline: 'barbell-outline' },
   { name: 'Profile', label: 'Profile',   icon: 'person',  iconOutline: 'person-outline'  },
 ] as const;
 
-const TAB_COUNT   = TABS.length;
-const TAB_WIDTH   = SCREEN_WIDTH / TAB_COUNT;
-// How tall the flat base of the bar is
-const BAR_HEIGHT  = 62;
-// How high the active "bump" rises above the bar
-const BUMP_HEIGHT = 28;
-// Total component height = bar + bump overhang
-const TOTAL_HEIGHT = BAR_HEIGHT + BUMP_HEIGHT;
-// Radius of the floating active icon circle
-const PILL_R = 26;
+const TAB_COUNT = TABS.length;
+const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
+const BAR_HEIGHT = 64;
 
-// ── SVG curve path for the bumped bar background ──────────────────────────────
-// The curve is centered on the active tab's midpoint (cx).
-// It uses a smooth cubic bezier to dip below the surface and create the
-// signature "notch" shape, then fills the rest of the bar.
-function buildBarPath(cx: number): string {
-  const W  = SCREEN_WIDTH;
-  const H  = TOTAL_HEIGHT;
-  const bh = BAR_HEIGHT;      // y-level of the flat bar top
-  const bump = BUMP_HEIGHT;   // how high bump rises above bh
-  const notchW = 90;          // total width of the notch opening
-  const curveCtrl = 28;       // bezier control handle spread
-
-  const lx = cx - notchW / 2; // left edge of notch
-  const rx = cx + notchW / 2; // right edge of notch
-  const ty = bh - bump;       // top of the bump circle clearance
-
-  return [
-    `M 0 ${H}`,                                           // bottom-left
-    `L 0 ${bh}`,                                          // up left wall
-    `L ${lx - curveCtrl} ${bh}`,                          // flat left
-    `C ${lx} ${bh} ${lx} ${ty} ${cx} ${ty}`,             // left curve into bump
-    `C ${rx} ${ty} ${rx} ${bh} ${rx + curveCtrl} ${bh}`, // right curve out of bump
-    `L ${W} ${bh}`,                                       // flat right
-    `L ${W} ${H}`,                                        // down right wall
-    `Z`,                                                  // close
-  ].join(' ');
-}
-
-// ── Single tab button ─────────────────────────────────────────────────────────
+// ── Single tab button ──────────────────────────────────────────────────────────
 interface TabButtonProps {
   tab:      typeof TABS[number];
   isActive: boolean;
   onPress:  () => void;
-  centerX:  number; // absolute x center of this tab
 }
 
-const TabButton = ({ tab, isActive, onPress, centerX }: TabButtonProps) => {
-  const rise   = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-  const scale  = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-  const fade   = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-  const labelFade = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
+  // Pill background
+  const pillScale   = useRef(new Animated.Value(isActive ? 1 : 0.7)).current;
+  const pillOpacity = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+  // Icon
+  const iconBounce  = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+  // Label — always partially visible; fully lit when active
+  const labelOpacity = useRef(new Animated.Value(isActive ? 1 : 0.45)).current;
+  const labelSlide   = useRef(new Animated.Value(isActive ? 0 : 3)).current;
+  // Press feedback
+  const pressScale   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(rise,  { toValue: isActive ? 1 : 0, useNativeDriver: true, tension: 160, friction: 10 }),
-      Animated.spring(scale, { toValue: isActive ? 1 : 0, useNativeDriver: true, tension: 200, friction: 12 }),
-      Animated.timing(fade,  { toValue: isActive ? 1 : 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(labelFade, { toValue: isActive ? 1 : 0, duration: 200, useNativeDriver: true }),
+      Animated.spring(pillScale,    { toValue: isActive ? 1 : 0.7,  useNativeDriver: true, tension: 200, friction: 14 }),
+      Animated.timing(pillOpacity,  { toValue: isActive ? 1 : 0,    duration: 180,         useNativeDriver: true }),
+      Animated.spring(iconBounce,   { toValue: isActive ? 1 : 0,    useNativeDriver: true, tension: 220, friction: 10 }),
+      Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.45, duration: 180,         useNativeDriver: true }),
+      Animated.spring(labelSlide,   { toValue: isActive ? 0 : 3,    useNativeDriver: true, tension: 200, friction: 14 }),
     ]).start();
   }, [isActive]);
 
-  // Active icon floats up above the bar surface into the bump
-  const translateY = rise.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0, -(BUMP_HEIGHT + 8)],
-  });
-  const iconScale = scale.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0.7, 1],
-  });
+  const iconTranslateY = iconBounce.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
+  const iconScale      = iconBounce.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
+
+  const onPressIn  = () => Animated.spring(pressScale, { toValue: 0.88, useNativeDriver: true, tension: 300, friction: 10 }).start();
+  const onPressOut = () => Animated.spring(pressScale, { toValue: 1,    useNativeDriver: true, tension: 200, friction: 8  }).start();
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      activeOpacity={1}
       style={[styles.tabBtn, { width: TAB_WIDTH }]}
     >
-      {/* Active floating pill */}
-      <Animated.View
-        style={[
-          styles.activePill,
-          {
-            opacity: fade,
-            transform: [{ translateY }, { scale: iconScale }],
-          },
-        ]}
-      >
-        <Ionicons
-          name={tab.icon as any}
-          size={22}
-          color={theme.colors.accentText}
-        />
-      </Animated.View>
+      <Animated.View style={[styles.tabInner, { transform: [{ scale: pressScale }] }]}>
 
-      {/* Inactive icon (sits in bar, fades out when active) */}
-      <Animated.View
-        style={[
-          styles.inactiveIcon,
-          { opacity: Animated.subtract(1, fade) },
-        ]}
-      >
-        <Ionicons
-          name={tab.iconOutline as any}
-          size={22}
-          color={theme.colors.muted}
+        {/* Pill highlight */}
+        <Animated.View
+          style={[
+            styles.pill,
+            { opacity: pillOpacity, transform: [{ scaleX: pillScale }] },
+          ]}
         />
-      </Animated.View>
 
-      {/* Label — visible when active, hidden otherwise */}
-      <Animated.Text
-        style={[
-          styles.tabLabel,
-          { opacity: labelFade, color: theme.colors.accent },
-        ]}
-      >
-        {tab.label}
-      </Animated.Text>
+        {/* Icon */}
+        <Animated.View style={{ transform: [{ translateY: iconTranslateY }, { scale: iconScale }], marginBottom: 3 }}>
+          <Ionicons
+            name={(isActive ? tab.icon : tab.iconOutline) as any}
+            size={22}
+            color={isActive ? theme.colors.accent : theme.colors.muted}
+          />
+        </Animated.View>
+
+        {/* Label — ALWAYS rendered, just dimmed when inactive */}
+        <Animated.Text
+          numberOfLines={1}
+          style={[
+            styles.tabLabel,
+            {
+              color:     isActive ? theme.colors.accent : theme.colors.muted,
+              opacity:   labelOpacity,
+              transform: [{ translateY: labelSlide }],
+            },
+          ]}
+        >
+          {tab.label}
+        </Animated.Text>
+
+      </Animated.View>
     </TouchableOpacity>
   );
 };
@@ -162,83 +123,67 @@ interface CustomTabBarProps {
   navigation:  any;
 }
 
-const CustomTabBar = ({ state, descriptors, navigation }: CustomTabBarProps) => {
-  const insets   = useSafeAreaInsets();
+const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
+  const insets    = useSafeAreaInsets();
   const activeIdx = state.index;
 
-  // Animated cx: horizontal center of the active tab
-  const animCx = useRef(new Animated.Value(TAB_WIDTH * activeIdx + TAB_WIDTH / 2)).current;
+  // Dynamic safe-area padding:
+  // iOS  → insets.bottom = home indicator height (typically 34px)
+  // Android gesture nav → insets.bottom is set by the system
+  // Android 3-button nav → insets.bottom = 0, keep minimum 8px
+  const bottomPad = insets.bottom > 0
+    ? insets.bottom
+    : Platform.OS === 'android' ? 8 : 0;
 
-  // We need a JS-driven value to recalculate the SVG path on each frame
-  const [cx, setCx] = React.useState(TAB_WIDTH * activeIdx + TAB_WIDTH / 2);
+  // Sliding top-indicator
+  const indicatorX = useRef(
+    new Animated.Value(TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16)
+  ).current;
 
   useEffect(() => {
-    const targetCx = TAB_WIDTH * activeIdx + TAB_WIDTH / 2;
-    Animated.spring(animCx, {
-      toValue: targetCx,
-      useNativeDriver: false, // needs to drive SVG — can't use native driver
-      tension: 180,
-      friction: 14,
+    Animated.spring(indicatorX, {
+      toValue:      TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16,
+      useNativeDriver: true,
+      tension:      200,
+      friction:     16,
     }).start();
   }, [activeIdx]);
-
-  useEffect(() => {
-    const id = animCx.addListener(({ value }) => setCx(value));
-    return () => animCx.removeListener(id);
-  }, []);
-
-  const barPath = buildBarPath(cx);
-
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
 
   return (
     <View
       style={[
         styles.barWrapper,
-        { height: TOTAL_HEIGHT + bottomPad, paddingBottom: bottomPad },
+        {
+          // Grows with safe-area inset; never smaller than designed height
+          minHeight:     BAR_HEIGHT + bottomPad,
+          paddingBottom: bottomPad,
+        },
       ]}
     >
-      {/* SVG curved background */}
-      <Svg
-        width={SCREEN_WIDTH}
-        height={TOTAL_HEIGHT}
-        style={StyleSheet.absoluteFill}
-      >
-        <Path d={barPath} fill={theme.colors.surface} />
-      </Svg>
+      {/* Top divider */}
+      <View style={styles.topDivider} />
 
-      {/* Subtle top border line — only on flat parts */}
-      <View style={[styles.borderLine, { width: SCREEN_WIDTH }]} />
-
-      {/* Accent glow dot behind active pill */}
+      {/* Sliding accent indicator */}
       <Animated.View
-        style={[
-          styles.glowDot,
-          {
-            transform: [
-              {
-                translateX: animCx.interpolate({
-                  inputRange:  [0, SCREEN_WIDTH],
-                  outputRange: [-PILL_R, SCREEN_WIDTH - PILL_R],
-                }),
-              },
-              { translateY: -(BUMP_HEIGHT + 8 + PILL_R) },
-            ],
-          },
-        ]}
+        style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
       />
 
-      {/* Tab buttons row */}
-      <View style={[styles.tabsRow, { marginTop: BUMP_HEIGHT }]}>
+      {/* Tab row */}
+      <View style={styles.tabsRow}>
         {TABS.map((tab, i) => (
           <TabButton
             key={tab.name}
             tab={tab}
             isActive={activeIdx === i}
-            centerX={TAB_WIDTH * i + TAB_WIDTH / 2}
             onPress={() => {
-              const event = navigation.emit({ type: 'tabPress', target: state.routes[i].key, canPreventDefault: true });
-              if (!event.defaultPrevented) navigation.navigate(state.routes[i].name);
+              const event = navigation.emit({
+                type:              'tabPress',
+                target:            state.routes[i].key,
+                canPreventDefault: true,
+              });
+              if (!event.defaultPrevented) {
+                navigation.navigate(state.routes[i].name);
+              }
             }}
           />
         ))}
@@ -247,15 +192,18 @@ const CustomTabBar = ({ state, descriptors, navigation }: CustomTabBarProps) => 
   );
 };
 
-// ── Navigator ─────────────────────────────────────────────────────────────────
+// ── Navigator ──────────────────────────────────────────────────────────────────
 export default function BottomTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.bg },
-        headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: theme.font.weightBold, fontSize: theme.font.sizeLg },
+        headerStyle:      { backgroundColor: theme.colors.bg },
+        headerTintColor:  theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: theme.font.weightBold,
+          fontSize:   theme.font.sizeLg,
+        },
       }}
     >
       <Tab.Screen name="Home"    component={HomeScreen}         options={{ title: 'NEXA' }} />
@@ -265,73 +213,61 @@ export default function BottomTabs() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   barWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
+    position:        'absolute',
+    bottom:          0,
+    left:            0,
+    right:           0,
+    backgroundColor: theme.colors.surface,
+    shadowColor:     '#000',
+    shadowOpacity:   0.12,
+    shadowRadius:    12,
+    shadowOffset:    { width: 0, height: -3 },
+    elevation:       12,
   },
-  borderLine: {
-    position: 'absolute',
-    top: BUMP_HEIGHT,
-    height: 1,
+  topDivider: {
+    height:          1,
     backgroundColor: theme.colors.border,
-    opacity: 0.6,
+    opacity:         0.4,
   },
-  glowDot: {
-    position: 'absolute',
-    width: PILL_R * 2,
-    height: PILL_R * 2,
-    borderRadius: PILL_R,
+  indicator: {
+    position:        'absolute',
+    top:             0,
+    width:           32,
+    height:          3,
+    borderRadius:    2,
     backgroundColor: theme.colors.accent,
-    opacity: 0.18,
-    // slightly larger blur effect via shadow
-    shadowColor: theme.colors.accent,
-    shadowOpacity: 0.9,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
   },
   tabsRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems:    'center',
+    height:        BAR_HEIGHT,
   },
   tabBtn: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    height: BAR_HEIGHT,
-    paddingTop: 10,
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    height:         BAR_HEIGHT,
   },
-  activePill: {
-    position: 'absolute',
-    width: PILL_R * 2,
-    height: PILL_R * 2,
-    borderRadius: PILL_R,
+  tabInner: {
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+  pill: {
+    position:        'absolute',
+    width:           72,
+    height:          36,
+    borderRadius:    18,
     backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Drop shadow under the pill
-    shadowColor: theme.colors.accent,
-    shadowOpacity: 0.55,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-    top: -8, // sits relative to tabBtn paddingTop baseline before animation
-  },
-  inactiveIcon: {
-    position: 'absolute',
-    top: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    opacity:         0.14,
+    top:             -4,
   },
   tabLabel: {
-    position: 'absolute',
-    bottom: 8,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
+    fontSize:      11,
+    fontWeight:    '600',
+    letterSpacing: 0.3,
+    textAlign:     'center',
   },
 });
