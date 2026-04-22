@@ -2,10 +2,12 @@ import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { ProfileHeader } from '../../components/profile/ProfileHeader';
+import { StatCard } from '../../components/profile/StatCard';
+import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
@@ -15,70 +17,117 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export const ProfileScreen = () => {
   const { profile, settings } = useProfile();
   const nav = useNavigation<Nav>();
-  const initials = profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  const isImperial = settings.units === 'imperial';
 
-  const heightLabel = settings.units === 'metric'
-    ? `${profile.heightCm} cm`
-    : `${Math.round(profile.heightCm / 2.54)} in`;
-  const weightLabel = settings.units === 'metric'
-    ? `${profile.weightKg} kg`
-    : `${Math.round(profile.weightKg * 2.20462)} lb`;
+  // ── Display values ───────────────────────────────────────────────────────
+  const heightLabel = isImperial
+    ? `${Math.round(profile.heightCm / 2.54)}`
+    : `${profile.heightCm}`;
+  const heightUnit = isImperial ? 'in' : 'cm';
+
+  const weightLabel = isImperial
+    ? `${Math.round(profile.weightKg * 2.20462)}`
+    : `${profile.weightKg}`;
+  const weightUnit = isImperial ? 'lb' : 'kg';
+
+  const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
 
   return (
     <Screen scroll>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        <Text style={styles.name}>{profile.name}</Text>
-        <Text style={styles.muted}>{profile.age} years old</Text>
-      </View>
+      {/* ── Premium Avatar Header ───────────────────────────────────────── */}
+      <ProfileHeader profile={profile} subtitle={subtitle} />
 
+      {/* ── Integrated Stats Row ─────────────────────────────────────────── */}
       <View style={styles.statsRow}>
-        <Card style={styles.stat}>
-          <Text style={styles.statValue}>{heightLabel}</Text>
-          <Text style={styles.statLabel}>Height</Text>
-        </Card>
-        <Card style={styles.stat}>
-          <Text style={styles.statValue}>{weightLabel}</Text>
-          <Text style={styles.statLabel}>Weight</Text>
-        </Card>
-        <Card style={styles.stat}>
-          <Text style={styles.statValue}>{profile.age}</Text>
-          <Text style={styles.statLabel}>Age</Text>
+        <StatCard
+          icon="resize-outline"
+          value={`${heightLabel}`}
+          label={heightUnit}
+          accent
+        />
+        <StatCard
+          icon="barbell-outline"
+          value={`${weightLabel}`}
+          label={weightUnit}
+        />
+        <StatCard
+          icon="calendar-outline"
+          value={`${profile.age}`}
+          label="Age"
+        />
+      </View>
+
+      {/* ── Fitness Goal ─────────────────────────────────────────────────── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>FITNESS GOAL</Text>
+        <Card>
+          <Text style={styles.goalText}>
+            {profile.goal || 'No goal set yet. Tap Edit Profile to add one.'}
+          </Text>
         </Card>
       </View>
 
-      <Card style={{ marginTop: theme.spacing.lg }}>
-        <Text style={styles.sectionTitle}>Fitness Goal</Text>
-        <Text style={styles.goalText}>{profile.goal}</Text>
-      </Card>
+      {/* ── Recent Achievements — empty placeholder ───────────────────────  */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>ACHIEVEMENTS</Text>
+        <EmptyPlaceholder
+          icon="trophy-outline"
+          title="No achievements yet"
+          message={"Complete your first workout to start\nearning badges and milestones."}
+        />
+      </View>
 
-      <Button title="Edit Profile" onPress={() => nav.navigate('EditProfile')} style={{ marginTop: theme.spacing.lg }} />
-      <Button
-        title="Settings"
-        variant="secondary"
-        onPress={() => nav.navigate('Settings')}
-        style={{ marginTop: theme.spacing.md }}
-      />
+      {/* ── Workout Activity — empty placeholder ─────────────────────────── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>WORKOUT ACTIVITY</Text>
+        <EmptyPlaceholder
+          icon="stats-chart-outline"
+          title="No workouts logged"
+          message={"Your weekly activity chart will appear\nhere once you log a session."}
+        />
+      </View>
+
+      {/* ── Actions ──────────────────────────────────────────────────────── */}
+      <View style={styles.actions}>
+        <Button
+          title="Edit Profile"
+          onPress={() => nav.navigate('EditProfile')}
+          fullWidth
+        />
+        <Button
+          title="Settings"
+          variant="secondary"
+          onPress={() => nav.navigate('Settings')}
+          fullWidth
+          style={{ marginTop: theme.spacing.sm }}
+        />
+      </View>
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', marginBottom: theme.spacing.lg },
-  avatar: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: theme.colors.accent, alignItems: 'center', justifyContent: 'center',
-    marginBottom: theme.spacing.md,
+  statsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xl,
   },
-  avatarText: { fontSize: 36, fontWeight: theme.font.weightBlack, color: theme.colors.accentText },
-  name: { color: theme.colors.text, fontSize: theme.font.sizeXxl, fontWeight: theme.font.weightBold },
-  muted: { color: theme.colors.muted, fontSize: theme.font.sizeSm, marginTop: 2 },
-  statsRow: { flexDirection: 'row', gap: theme.spacing.md },
-  stat: { flex: 1, alignItems: 'center', padding: theme.spacing.md },
-  statValue: { color: theme.colors.accent, fontSize: theme.font.sizeLg, fontWeight: theme.font.weightBold },
-  statLabel: { color: theme.colors.muted, fontSize: theme.font.sizeXs, marginTop: 2 },
-  sectionTitle: { color: theme.colors.text, fontSize: theme.font.sizeLg, fontWeight: theme.font.weightBold, marginBottom: theme.spacing.sm },
-  goalText: { color: theme.colors.muted, fontSize: theme.font.sizeMd, lineHeight: 22 },
+  section: {
+    marginTop: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  sectionLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 1.2,
+  },
+  goalText: {
+    color: theme.colors.muted,
+    fontSize: theme.font.sizeMd,
+    lineHeight: 22,
+  },
+  actions: {
+    marginTop: theme.spacing.xxl,
+  },
 });
