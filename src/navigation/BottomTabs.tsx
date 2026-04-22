@@ -1,12 +1,13 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View,
-  TouchableOpacity,
+  Text,
   StyleSheet,
   Animated,
   Dimensions,
   Platform,
 } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +35,6 @@ const TAB_COUNT = TABS.length;
 const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
 const BAR_HEIGHT = 64;
 
-// ── Single tab button ──────────────────────────────────────────────────────────
 interface TabButtonProps {
   tab:      typeof TABS[number];
   isActive: boolean;
@@ -42,29 +42,20 @@ interface TabButtonProps {
 }
 
 const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
-  // Pill background
-  const pillScale   = useRef(new Animated.Value(isActive ? 1 : 0.7)).current;
-  const pillOpacity = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-  // Icon
-  const iconBounce  = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-  // Label — always partially visible; fully lit when active
+  const iconScale    = useRef(new Animated.Value(isActive ? 1.12 : 1)).current;
   const labelOpacity = useRef(new Animated.Value(isActive ? 1 : 0.45)).current;
   const labelSlide   = useRef(new Animated.Value(isActive ? 0 : 3)).current;
-  // Press feedback
   const pressScale   = useRef(new Animated.Value(1)).current;
+  const pillOpacity  = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(pillScale,    { toValue: isActive ? 1 : 0.7,  useNativeDriver: true, tension: 200, friction: 14 }),
-      Animated.timing(pillOpacity,  { toValue: isActive ? 1 : 0,    duration: 180,         useNativeDriver: true }),
-      Animated.spring(iconBounce,   { toValue: isActive ? 1 : 0,    useNativeDriver: true, tension: 220, friction: 10 }),
-      Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.45, duration: 180,         useNativeDriver: true }),
-      Animated.spring(labelSlide,   { toValue: isActive ? 0 : 3,    useNativeDriver: true, tension: 200, friction: 14 }),
+      Animated.spring(iconScale,    { toValue: isActive ? 1.12 : 1,  useNativeDriver: true, tension: 220, friction: 10 }),
+      Animated.timing(pillOpacity,  { toValue: isActive ? 1 : 0,     duration: 180,          useNativeDriver: true }),
+      Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.45,  duration: 180,          useNativeDriver: true }),
+      Animated.spring(labelSlide,   { toValue: isActive ? 0 : 3,     useNativeDriver: true, tension: 200, friction: 14 }),
     ]).start();
   }, [isActive]);
-
-  const iconTranslateY = iconBounce.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
-  const iconScale      = iconBounce.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
 
   const onPressIn  = () => Animated.spring(pressScale, { toValue: 0.88, useNativeDriver: true, tension: 300, friction: 10 }).start();
   const onPressOut = () => Animated.spring(pressScale, { toValue: 1,    useNativeDriver: true, tension: 200, friction: 8  }).start();
@@ -78,17 +69,11 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
       style={[styles.tabBtn, { width: TAB_WIDTH }]}
     >
       <Animated.View style={[styles.tabInner, { transform: [{ scale: pressScale }] }]}>
+        {/* Pill rendered first = behind everything */}
+        <Animated.View style={[styles.pill, { opacity: pillOpacity }]} />
 
-        {/* Pill highlight */}
-        <Animated.View
-          style={[
-            styles.pill,
-            { opacity: pillOpacity, transform: [{ scaleX: pillScale }] },
-          ]}
-        />
-
-        {/* Icon */}
-        <Animated.View style={{ transform: [{ translateY: iconTranslateY }, { scale: iconScale }], marginBottom: 3 }}>
+        {/* Icon on top of pill */}
+        <Animated.View style={{ transform: [{ scale: iconScale }], marginBottom: 3 }}>
           <Ionicons
             name={(isActive ? tab.icon : tab.iconOutline) as any}
             size={22}
@@ -96,7 +81,7 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
           />
         </Animated.View>
 
-        {/* Label — ALWAYS rendered, just dimmed when inactive */}
+        {/* Label on top of pill */}
         <Animated.Text
           numberOfLines={1}
           style={[
@@ -110,13 +95,11 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
         >
           {tab.label}
         </Animated.Text>
-
       </Animated.View>
     </TouchableOpacity>
   );
 };
 
-// ── Custom tab bar ─────────────────────────────────────────────────────────────
 interface CustomTabBarProps {
   state:       any;
   descriptors: any;
@@ -127,25 +110,20 @@ const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
   const insets    = useSafeAreaInsets();
   const activeIdx = state.index;
 
-  // Dynamic safe-area padding:
-  // iOS  → insets.bottom = home indicator height (typically 34px)
-  // Android gesture nav → insets.bottom is set by the system
-  // Android 3-button nav → insets.bottom = 0, keep minimum 8px
   const bottomPad = insets.bottom > 0
     ? insets.bottom
     : Platform.OS === 'android' ? 8 : 0;
 
-  // Sliding top-indicator
   const indicatorX = useRef(
     new Animated.Value(TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16)
   ).current;
 
   useEffect(() => {
     Animated.spring(indicatorX, {
-      toValue:      TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16,
+      toValue:         TAB_WIDTH * activeIdx + TAB_WIDTH / 2 - 16,
       useNativeDriver: true,
-      tension:      200,
-      friction:     16,
+      tension:         200,
+      friction:        16,
     }).start();
   }, [activeIdx]);
 
@@ -153,22 +131,15 @@ const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
     <View
       style={[
         styles.barWrapper,
-        {
-          // Grows with safe-area inset; never smaller than designed height
-          minHeight:     BAR_HEIGHT + bottomPad,
-          paddingBottom: bottomPad,
-        },
+        { minHeight: BAR_HEIGHT + bottomPad, paddingBottom: bottomPad },
       ]}
     >
-      {/* Top divider */}
       <View style={styles.topDivider} />
 
-      {/* Sliding accent indicator */}
       <Animated.View
         style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
       />
 
-      {/* Tab row */}
       <View style={styles.tabsRow}>
         {TABS.map((tab, i) => (
           <TabButton
@@ -192,7 +163,6 @@ const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
   );
 };
 
-// ── Navigator ──────────────────────────────────────────────────────────────────
 export default function BottomTabs() {
   return (
     <Tab.Navigator
@@ -213,13 +183,9 @@ export default function BottomTabs() {
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   barWrapper: {
-    position:        'absolute',
-    bottom:          0,
-    left:            0,
-    right:           0,
+    // NOT position:absolute — navigator handles layout so content is NOT hidden behind bar
     backgroundColor: theme.colors.surface,
     shadowColor:     '#000',
     shadowOpacity:   0.12,
@@ -252,17 +218,20 @@ const styles = StyleSheet.create({
     height:         BAR_HEIGHT,
   },
   tabInner: {
-    alignItems:     'center',
-    justifyContent: 'center',
+    alignItems:        'center',
+    justifyContent:    'center',
+    paddingVertical:   4,
+    paddingHorizontal: 10,
   },
+  // Pill is absolutely positioned BEHIND; it doesn't push icon or label
   pill: {
     position:        'absolute',
     width:           72,
-    height:          36,
-    borderRadius:    18,
+    height:          46,
+    borderRadius:    23,
     backgroundColor: theme.colors.accent,
     opacity:         0.14,
-    top:             -4,
+    alignSelf:       'center',
   },
   tabLabel: {
     fontSize:      11,

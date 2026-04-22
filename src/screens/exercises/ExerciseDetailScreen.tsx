@@ -1,16 +1,19 @@
-import React, { useLayoutEffect } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Alert,
-  Image,
   ImageBackground,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -20,11 +23,11 @@ import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
-type R = RouteProp<RootStackParamList, 'ExerciseDetail'>;
+type R   = RouteProp<RootStackParamList, 'ExerciseDetail'>;
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-/** Hero image with gradient fade at the bottom so text floats cleanly over it. */
+// ─── Hero image ───────────────────────────────────────────────────────────────
 const ExerciseHeroImage = ({ uri, name }: { uri: string; name: string }) => (
   <View style={heroStyles.container}>
     <ImageBackground
@@ -41,24 +44,18 @@ const ExerciseHeroImage = ({ uri, name }: { uri: string; name: string }) => (
     </ImageBackground>
   </View>
 );
-
 const heroStyles = StyleSheet.create({
   container: {
     marginBottom: theme.spacing.lg,
     borderRadius: theme.radius.lg,
     overflow: 'hidden',
-    // Accent glow
     shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
   },
-  image: {
-    width: '100%',
-    height: 220,
-    justifyContent: 'flex-end',
-  },
+  image: { width: '100%', height: 220, justifyContent: 'flex-end' },
   gradient: {
     height: 80,
     borderBottomLeftRadius: theme.radius.lg,
@@ -66,7 +63,7 @@ const heroStyles = StyleSheet.create({
   },
 });
 
-/** Single numbered step row — large enough to read mid-workout. */
+// ─── Step row ─────────────────────────────────────────────────────────────────
 const StepRow = ({ index, text }: { index: number; text: string }) => (
   <View style={stepStyles.row}>
     <View style={stepStyles.badge}>
@@ -75,7 +72,6 @@ const StepRow = ({ index, text }: { index: number; text: string }) => (
     <Text style={stepStyles.text}>{text}</Text>
   </View>
 );
-
 const stepStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -91,7 +87,7 @@ const stepStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    marginTop: 1, // optical alignment with first line of text
+    marginTop: 1,
   },
   badgeText: {
     color: theme.colors.accentText,
@@ -107,13 +103,76 @@ const stepStyles = StyleSheet.create({
   },
 });
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Tab bar ──────────────────────────────────────────────────────────────────
+const TABS = ['Overview', 'How To', 'History'] as const;
+type TabName = typeof TABS[number];
 
+interface TabBarProps {
+  activeTab: TabName;
+  onSelect: (t: TabName) => void;
+}
+const TabBar = ({ activeTab, onSelect }: TabBarProps) => (
+  <View style={tabBarStyles.bar}>
+    {TABS.map((tab) => {
+      const active = tab === activeTab;
+      return (
+        <TouchableOpacity
+          key={tab}
+          style={[tabBarStyles.tab, active && tabBarStyles.tabActive]}
+          onPress={() => onSelect(tab)}
+          activeOpacity={0.7}
+        >
+          <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive]}>
+            {tab}
+          </Text>
+          {active && <View style={tabBarStyles.underline} />}
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+);
+const tabBarStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginBottom: theme.spacing.lg,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    position: 'relative',
+  },
+  tabActive: {},
+  label: {
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightMedium,
+    color: theme.colors.muted,
+  },
+  labelActive: {
+    color: theme.colors.accent,
+    fontWeight: theme.font.weightBold,
+  },
+  underline: {
+    position: 'absolute',
+    bottom: -1,
+    left: '15%',
+    right: '15%',
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: theme.colors.accent,
+  },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export const ExerciseDetailScreen = () => {
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const { getById, removeExercise } = useExercises();
   const exercise = getById(params.exerciseId);
+
+  const [activeTab, setActiveTab] = useState<TabName>('Overview');
 
   useLayoutEffect(() => {
     nav.setOptions({
@@ -141,28 +200,24 @@ export const ExerciseDetailScreen = () => {
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => {
-          removeExercise(exercise.id);
-          nav.goBack();
-        },
+        onPress: () => { removeExercise(exercise.id); nav.goBack(); },
       },
     ]);
   };
 
   return (
     <Screen scroll>
-      {/* ── Hero Image ─────────────────────────────────────────────────── */}
+      {/* ── Hero Image ───────────────────────────────────────────────── */}
       {exercise.imageUrl ? (
         <ExerciseHeroImage uri={exercise.imageUrl} name={exercise.name} />
       ) : (
-        /* Fallback placeholder when no image is set */
         <View style={styles.imageFallback}>
           <Ionicons name="image-outline" size={40} color={theme.colors.border} />
           <Text style={styles.imageFallbackText}>No image added yet</Text>
         </View>
       )}
 
-      {/* ── Title & Meta ───────────────────────────────────────────────── */}
+      {/* ── Title & Meta ─────────────────────────────────────────────── */}
       <Text style={styles.title}>{exercise.name}</Text>
       <View style={styles.metaRow}>
         <View style={styles.metaChip}>
@@ -175,53 +230,105 @@ export const ExerciseDetailScreen = () => {
         </View>
       </View>
 
-      {/* ── Default Volume ─────────────────────────────────────────────── */}
-      <View style={styles.statsRow}>
-        <Card style={styles.stat}>
-          <Text style={styles.statValue}>{exercise.defaultSets}</Text>
-          <Text style={styles.statLabel}>SETS</Text>
-        </Card>
-        <Card style={styles.stat}>
-          <Text style={styles.statValue}>{exercise.defaultReps}</Text>
-          <Text style={styles.statLabel}>REPS</Text>
-        </Card>
-      </View>
+      {/* ── Tab Bar ──────────────────────────────────────────────────── */}
+      <TabBar activeTab={activeTab} onSelect={setActiveTab} />
 
-      {/* ── Step-by-Step Instructions ──────────────────────────────────── */}
-      {exercise.steps.length > 0 && (
-        <View style={styles.stepsSection}>
-          <View style={styles.stepsHeader}>
-            <Text style={styles.sectionTitle}>How to perform</Text>
-            <Text style={styles.stepCount}>{exercise.steps.length} steps</Text>
+      {/* ── Overview tab ─────────────────────────────────────────────── */}
+      {activeTab === 'Overview' && (
+        <View>
+          {/* Default Volume */}
+          <View style={styles.statsRow}>
+            <Card style={styles.stat}>
+              <Text style={styles.statValue}>{exercise.defaultSets}</Text>
+              <Text style={styles.statLabel}>SETS</Text>
+            </Card>
+            <Card style={styles.stat}>
+              <Text style={styles.statValue}>{exercise.defaultReps}</Text>
+              <Text style={styles.statLabel}>REPS</Text>
+            </Card>
           </View>
-          <Card style={styles.stepsCard}>
-            {exercise.steps.map((step, i) => (
-              <StepRow key={i} index={i} text={step} />
-            ))}
-          </Card>
+
+          {/* Quick description if no image */}
+          {exercise.steps.length > 0 && (
+            <Card style={styles.overviewPreview}>
+              <Text style={styles.overviewPreviewTitle}>Quick Summary</Text>
+              <Text style={styles.overviewPreviewText} numberOfLines={3}>
+                {exercise.steps[0]}
+              </Text>
+              <TouchableOpacity onPress={() => setActiveTab('How To')} style={styles.overviewPreviewLink}>
+                <Text style={styles.overviewPreviewLinkText}>See all {exercise.steps.length} steps →</Text>
+              </TouchableOpacity>
+            </Card>
+          )}
+
+          {/* Actions */}
+          <Button
+            title="Edit Exercise"
+            onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
+            fullWidth
+            style={{ marginTop: theme.spacing.xl }}
+          />
+          <Button
+            title="Delete Exercise"
+            variant="destructive"
+            onPress={handleDelete}
+            fullWidth
+            style={{ marginTop: theme.spacing.md }}
+          />
         </View>
       )}
 
-      {/* ── Actions ────────────────────────────────────────────────────── */}
-      <Button
-        title="Edit Exercise"
-        onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
-        fullWidth
-        style={{ marginTop: theme.spacing.xl }}
-      />
-      <Button
-        title="Delete Exercise"
-        variant="destructive"
-        onPress={handleDelete}
-        fullWidth
-        style={{ marginTop: theme.spacing.md }}
-      />
+      {/* ── How To tab ───────────────────────────────────────────────── */}
+      {activeTab === 'How To' && (
+        <View>
+          {exercise.steps.length === 0 ? (
+            <View style={styles.emptyTab}>
+              <Ionicons name="list-outline" size={44} color={theme.colors.border} />
+              <Text style={styles.emptyTabTitle}>No instructions yet</Text>
+              <Text style={styles.emptyTabSub}>
+                Edit this exercise to add step-by-step instructions.
+              </Text>
+              <Button
+                title="Add Instructions"
+                onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
+                style={{ marginTop: theme.spacing.lg }}
+              />
+            </View>
+          ) : (
+            <View>
+              <View style={styles.stepsHeader}>
+                <Text style={styles.sectionTitle}>Step-by-step</Text>
+                <Text style={styles.stepCount}>{exercise.steps.length} steps</Text>
+              </View>
+              <Card style={styles.stepsCard}>
+                {exercise.steps.map((step, i) => (
+                  <StepRow key={i} index={i} text={step} />
+                ))}
+              </Card>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── History tab ──────────────────────────────────────────────── */}
+      {activeTab === 'History' && (
+        <View style={styles.emptyTab}>
+          <MaterialCommunityIcons
+            name="chart-timeline-variant"
+            size={44}
+            color={theme.colors.border}
+          />
+          <Text style={styles.emptyTabTitle}>No history yet</Text>
+          <Text style={styles.emptyTabSub}>
+            Completed workouts that include this exercise will appear here.
+          </Text>
+        </View>
+      )}
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  // Fallback image box
   imageFallback: {
     height: 160,
     borderRadius: theme.radius.lg,
@@ -234,12 +341,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.lg,
   },
-  imageFallbackText: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-  },
+  imageFallbackText: { color: theme.colors.muted, fontSize: theme.font.sizeSm },
 
-  // Title / meta
   title: {
     color: theme.colors.text,
     fontSize: theme.font.sizeDisplay,
@@ -269,17 +372,13 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightMedium,
   },
 
-  // Stats
+  // Overview tab
   statsRow: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
+    marginBottom: theme.spacing.lg,
   },
-  stat: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-  },
+  stat: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing.lg },
   statValue: {
     color: theme.colors.accent,
     fontSize: theme.font.sizeXxl,
@@ -292,15 +391,32 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginTop: 2,
   },
-
-  // Steps section
-  stepsSection: {
+  overviewPreview: {
     gap: theme.spacing.sm,
   },
+  overviewPreviewTitle: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
+  overviewPreviewText: {
+    color: theme.colors.muted,
+    fontSize: theme.font.sizeSm,
+    lineHeight: 20,
+  },
+  overviewPreviewLink: { marginTop: 2 },
+  overviewPreviewLinkText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
+
+  // How To tab
   stepsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     color: theme.colors.text,
@@ -312,8 +428,26 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeXs,
     fontWeight: theme.font.weightMedium,
   },
-  stepsCard: {
-    paddingBottom: theme.spacing.xs, // last StepRow has its own bottom margin
+  stepsCard: { paddingBottom: theme.spacing.xs },
+
+  // Empty state (shared by How To & History when empty)
+  emptyTab: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+    gap: theme.spacing.sm,
+  },
+  emptyTabTitle: {
+    fontSize: theme.font.sizeLg,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.muted,
+    marginTop: theme.spacing.sm,
+  },
+  emptyTabSub: {
+    fontSize: theme.font.sizeSm,
+    color: theme.colors.muted,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: theme.spacing.xl,
   },
 
   muted: { color: theme.colors.muted },

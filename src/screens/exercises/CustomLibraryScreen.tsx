@@ -22,21 +22,18 @@ export const CustomLibraryScreen = () => {
   const { exercises } = useExercises();
 
   return (
-    // SafeAreaView wraps the whole screen but we manage the layout manually
-    // so the sticky header sits flush under the status bar with no bounce gap.
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
 
-      {/* ── Sticky Header (outside FlatList) ──────────────────────────── */}
+      {/* ── Sticky Header ──────────────────────────────────────────────── */}
       <LinearGradient
         colors={['#1C2A00', '#182200', '#0e1500']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={styles.header}
       >
-        {/* Decorative orb */}
         <View style={styles.heroOrb} />
 
-        {/* Back button */}
+        {/* Back button — uses nav.goBack(), same pattern as other screens */}
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => nav.goBack()}
@@ -45,7 +42,6 @@ export const CustomLibraryScreen = () => {
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
 
-        {/* Title row */}
         <View style={styles.heroContent}>
           <View style={styles.heroIcon}>
             <MaterialCommunityIcons
@@ -60,7 +56,6 @@ export const CustomLibraryScreen = () => {
           </Text>
         </View>
 
-        {/* Stats row */}
         <View style={styles.heroStats}>
           <View style={styles.heroStat}>
             <Text style={styles.heroStatValue}>{exercises.length}</Text>
@@ -79,37 +74,34 @@ export const CustomLibraryScreen = () => {
         </View>
       </LinearGradient>
 
-      {/* ── Scrollable Content ────────────────────────────────────────── */}
+      {/* ── "Create New Exercise" — visually separated from the list ──── */}
+      <View style={styles.createSection}>
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => nav.navigate('ExerciseForm', {})}
+          activeOpacity={0.75}
+        >
+          <View style={styles.createBtnIcon}>
+            <Ionicons name="add" size={22} color={theme.colors.accentText} />
+          </View>
+          <Text style={styles.createBtnLabel}>Create New Exercise</Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.accentText} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Divider label ──────────────────────────────────────────────── */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionHeaderText}>MY EXERCISES</Text>
+        <Text style={styles.sectionHeaderCount}>{exercises.length}</Text>
+      </View>
+
+      {/* ── Scrollable Exercise List ───────────────────────────────────── */}
       <FlatList
         data={exercises}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        // Prevent over-scroll bounce revealing the bg behind the header
         bounces={false}
-        ListHeaderComponent={
-          /* Add exercise CTA — rendered as first item in scroll area */
-          <TouchableOpacity
-            style={styles.addCard}
-            onPress={() => nav.navigate('ExerciseForm', {})}
-            activeOpacity={0.75}
-          >
-            <View style={styles.addCardIcon}>
-              <Ionicons name="add" size={22} color={theme.colors.accent} />
-            </View>
-            <View style={styles.addCardText}>
-              <Text style={styles.addCardTitle}>Create New Exercise</Text>
-              <Text style={styles.addCardSub}>
-                Add a custom move to your library
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={theme.colors.muted}
-            />
-          </TouchableOpacity>
-        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <MaterialCommunityIcons
@@ -119,7 +111,7 @@ export const CustomLibraryScreen = () => {
             />
             <Text style={styles.emptyTitle}>No exercises yet</Text>
             <Text style={styles.emptySub}>
-              Tap above to create your first custom exercise.
+              Use the button above to create your first custom exercise.
             </Text>
           </View>
         }
@@ -164,7 +156,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.bg,
   },
 
-  /* ── Sticky Header ─────────────────────────────────────────────────── */
+  /* ── Header ────────────────────────────────────────────────────────── */
   header: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
@@ -223,65 +215,75 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  heroStat: {
-    flex: 1,
-    alignItems: 'center',
-  },
+  heroStat: { flex: 1, alignItems: 'center' },
   heroStatValue: {
     fontSize: theme.font.sizeXl,
     fontWeight: theme.font.weightBold,
     color: theme.colors.text,
   },
-  heroStatLabel: {
-    fontSize: 11,
-    color: theme.colors.muted,
-    marginTop: 2,
-  },
-  heroStatDivider: {
-    width: 1,
-    backgroundColor: theme.colors.border,
-  },
+  heroStatLabel: { fontSize: 11, color: theme.colors.muted, marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: theme.colors.border },
 
-  /* ── List ──────────────────────────────────────────────────────────── */
-  listContent: {
+  /* ── Create New Exercise — solid accent button, clearly separate ──── */
+  createSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
+    paddingBottom: theme.spacing.sm,
   },
-
-  /* ── Add Card ──────────────────────────────────────────────────────── */
-  addCard: {
+  createBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.accent,
     borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(198, 255, 61, 0.2)',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,
   },
-  addCardIcon: {
-    width: 42,
-    height: 42,
+  createBtnIcon: {
+    width: 36,
+    height: 36,
     borderRadius: theme.radius.md,
-    backgroundColor: 'rgba(198, 255, 61, 0.1)',
+    backgroundColor: 'rgba(0,0,0,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addCardText: { flex: 1 },
-  addCardTitle: {
+  createBtnLabel: {
+    flex: 1,
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  addCardSub: {
-    fontSize: 12,
-    color: theme.colors.muted,
+    color: theme.colors.accentText,
   },
 
-  /* ── Exercise List Items ───────────────────────────────────────────── */
+  /* ── Section header divider ────────────────────────────────────────── */
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    marginTop: theme.spacing.sm,
+  },
+  sectionHeaderText: {
+    fontSize: 11,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.muted,
+    letterSpacing: 1.2,
+  },
+  sectionHeaderCount: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    fontWeight: theme.font.weightMedium,
+  },
+
+  /* ── Exercise List ─────────────────────────────────────────────────── */
+  listContent: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.xxl,
+  },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -310,10 +312,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     marginBottom: 2,
   },
-  listMeta: {
-    color: theme.colors.muted,
-    fontSize: 12,
-  },
+  listMeta: { color: theme.colors.muted, fontSize: 12 },
 
   /* ── Empty State ───────────────────────────────────────────────────── */
   empty: {
