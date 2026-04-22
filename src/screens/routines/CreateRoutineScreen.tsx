@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Modal,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Button } from '../../components/ui/Button';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
-import { Routine, RoutineExercise } from '../../types';
+import { Routine, RoutineExercise, RoutineFolder } from '../../types';
 import { useRoutine } from '../../context/RoutineContext';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -25,49 +33,75 @@ interface ExerciseState {
 }
 
 const REST_TIMER_OPTIONS = [
-  { label: 'Off', value: 0 },
-  { label: '5s', value: 5 },
-  { label: '10s', value: 10 },
-  { label: '15s', value: 15 },
-  { label: '30s', value: 30 },
-  { label: '60s', value: 60 },
+  { label: 'Off',  value: 0  },
+  { label: '5s',   value: 5  },
+  { label: '10s',  value: 10 },
+  { label: '15s',  value: 15 },
+  { label: '30s',  value: 30 },
+  { label: '60s',  value: 60 },
 ];
 
+// ── Modal type union ────────────────────────────────────────────────────────
+type ActiveModal =
+  | { type: 'restTimer'; exerciseId: string }
+  | { type: 'exerciseMenu'; exerciseId: string }
+  | { type: 'confirmSave' }
+  | { type: 'confirmCancel' }
+  | { type: 'confirmRemoveExercise'; exerciseId: string }
+  | { type: 'folderPicker' }
+  | { type: 'createFolder' };
+
 export const CreateRoutineScreen = ({ navigation, route }: Props) => {
-  const { routines, addRoutine, updateRoutine, setCurrentRoutine, currentRoutine } = useRoutine();
+  const {
+    routines,
+    addRoutine,
+    updateRoutine,
+    setCurrentRoutine,
+    currentRoutine,
+    folders,
+    addFolder,
+    assignRoutineToFolder,
+  } = useRoutine();
+
   const params = route.params;
-  const editing = params?.routineId ? routines.find((r) => r.id === params.routineId) : undefined;
+  const editing = params?.routineId
+    ? routines.find((r) => r.id === params.routineId)
+    : undefined;
 
-  const [title, setTitle] = useState(editing?.name ?? '');
-  const [exercises, setExercises] = useState<RoutineExercise[]>(editing?.exercises ?? []);
+  const [title, setTitle]             = useState(editing?.name ?? '');
+  const [exercises, setExercises]     = useState<RoutineExercise[]>(editing?.exercises ?? []);
   const [exerciseStates, setExerciseStates] = useState<Map<string, ExerciseState>>(new Map());
-  const [showRestTimerModal, setShowRestTimerModal] = useState<string | null>(null);
-  const [showExerciseMenu, setShowExerciseMenu] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(
+    editing?.folderId
+  );
+  const [newFolderName, setNewFolderName] = useState('');
+  const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
 
+  // Track whether the user has made any changes (to decide if cancel needs confirmation)
+  const [isDirty, setIsDirty] = useState(false);
+
+  const closeModal = () => setActiveModal(null);
+
+  // ── Sync exercises from context on focus ──────────────────────────────────
   useFocusEffect(
     React.useCallback(() => {
-      // Sync exercises from context when screen comes into focus
       let sourcedExercises: RoutineExercise[] = exercises;
 
       if (editing?.id) {
-        // For editing, get from routines array
         const updated = routines.find((r) => r.id === editing.id);
-        if (updated) {
-          sourcedExercises = updated.exercises;
-        }
+        if (updated) sourcedExercises = updated.exercises;
       } else if (currentRoutine?.id?.startsWith('temp-routine')) {
-        // For new routines, get from currentRoutine
         sourcedExercises = currentRoutine.exercises;
       }
 
-      // Update if exercises changed
-      if (
+      const changed =
         sourcedExercises.length !== exercises.length ||
-        sourcedExercises.some((ex) => !exercises.some((sel) => sel.id === ex.id))
-      ) {
-        setExercises(sourcedExercises);
+        sourcedExercises.some((ex) => !exercises.some((sel) => sel.id === ex.id));
 
-        // Update exercise states
+      if (changed) {
+        setExercises(sourcedExercises);
+        setIsDirty(true);
+
         const newStates = new Map<string, ExerciseState>();
         sourcedExercises.forEach((ex) => {
           if (exerciseStates.has(ex.id)) {
@@ -89,8 +123,9 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     }, [editing, routines, currentRoutine])
   );
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
   const handleAddExercise = () => {
-    // For new routines, create a temporary routine to hold exercises
     if (!editing) {
       const tempRoutine: Routine = {
         id: `temp-routine-${Date.now()}`,
@@ -103,12 +138,8 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     navigation.navigate('SelectExerciseForRoutine');
   };
 
-  const handleSave = () => {
-    if (!title.trim()) {
-      alert('Please enter a routine title');
-      return;
-    }
-
+  // Called after the user confirms in the Save modal
+  const commitSave = () => {
     const routine: Routine = {
       id: editing?.id ?? `routine-${Date.now()}`,
       name: title.trim(),
@@ -117,6 +148,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         ...ex,
         notes: exerciseStates.get(ex.id)?.notes ?? '',
       })),
+      folderId: selectedFolderId,
     };
 
     if (editing) {
@@ -125,117 +157,189 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
       addRoutine(routine);
     }
 
+    if (selectedFolderId) {
+      assignRoutineToFolder(routine.id, selectedFolderId);
+    }
+
     setCurrentRoutine(routine);
+    closeModal();
     navigation.goBack();
   };
 
-  const handleCancel = () => {
-    navigation.goBack();
+  const handleSavePress = () => {
+    if (!title.trim()) {
+      // Inline validation — no need for a modal here
+      setActiveModal(null);
+      setTimeout(() => alert('Please enter a routine title before saving.'), 100);
+      return;
+    }
+    if (exercises.length === 0) {
+      setTimeout(() => alert('Add at least one exercise before saving.'), 100);
+      return;
+    }
+    setActiveModal({ type: 'confirmSave' });
+  };
+
+  const handleCancelPress = () => {
+    if (isDirty || title.trim() || exercises.length > 0) {
+      setActiveModal({ type: 'confirmCancel' });
+    } else {
+      navigation.goBack();
+    }
   };
 
   const removeExercise = (exerciseId: string) => {
     setExercises((prev) => prev.filter((e) => e.id !== exerciseId));
     setExerciseStates((prev) => {
-      const newMap = new Map(prev);
-      newMap.delete(exerciseId);
-      return newMap;
+      const m = new Map(prev);
+      m.delete(exerciseId);
+      return m;
     });
+    setIsDirty(true);
   };
 
   const updateExerciseNote = (exerciseId: string, note: string) => {
     setExerciseStates((prev) => {
-      const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
-      if (state) {
-        newMap.set(exerciseId, { ...state, notes: note });
-      }
-      return newMap;
+      const m = new Map(prev);
+      const s = m.get(exerciseId);
+      if (s) m.set(exerciseId, { ...s, notes: note });
+      return m;
     });
+    setIsDirty(true);
   };
 
   const updateRestTimer = (exerciseId: string, duration: number) => {
     setExerciseStates((prev) => {
-      const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
-      if (state) {
-        newMap.set(exerciseId, { ...state, restTimerDuration: duration });
-      }
-      return newMap;
+      const m = new Map(prev);
+      const s = m.get(exerciseId);
+      if (s) m.set(exerciseId, { ...s, restTimerDuration: duration });
+      return m;
     });
-    setShowRestTimerModal(null);
+    closeModal();
   };
 
-  const updateSet = (exerciseId: string, setId: string, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (
+    exerciseId: string,
+    setId: string,
+    field: 'reps' | 'weight',
+    value: string
+  ) => {
     setExerciseStates((prev) => {
-      const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
-      if (state) {
-        newMap.set(exerciseId, {
-          ...state,
-          sets: state.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)),
+      const m = new Map(prev);
+      const s = m.get(exerciseId);
+      if (s)
+        m.set(exerciseId, {
+          ...s,
+          sets: s.sets.map((st) => (st.id === setId ? { ...st, [field]: value } : st)),
         });
-      }
-      return newMap;
+      return m;
     });
+    setIsDirty(true);
   };
 
   const addSet = (exerciseId: string) => {
     setExerciseStates((prev) => {
-      const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
-      if (state) {
-        const exercise = exercises.find((ex) => ex.id === exerciseId);
-        newMap.set(exerciseId, {
-          ...state,
+      const m = new Map(prev);
+      const s = m.get(exerciseId);
+      if (s) {
+        const ex = exercises.find((e) => e.id === exerciseId);
+        m.set(exerciseId, {
+          ...s,
           sets: [
-            ...state.sets,
+            ...s.sets,
             {
-              id: `${exerciseId}-set-${state.sets.length}`,
-              reps: String(exercise?.defaultReps ?? 10),
+              id: `${exerciseId}-set-${s.sets.length}-${Date.now()}`,
+              reps: String(ex?.defaultReps ?? 10),
               weight: '0',
             },
           ],
         });
       }
-      return newMap;
+      return m;
     });
+    setIsDirty(true);
   };
+
+  // ── Folder helpers ────────────────────────────────────────────────────────
+
+  const handleCreateFolder = () => {
+    if (!newFolderName.trim()) return;
+    const folder = addFolder(newFolderName.trim());
+    setSelectedFolderId(folder.id);
+    setNewFolderName('');
+    closeModal();
+  };
+
+  const selectedFolder = folders.find((f) => f.id === selectedFolderId);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Screen padded={false}>
-      {/* Header */}
+      {/* ── Header ────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleCancel}>
+        <TouchableOpacity onPress={handleCancelPress}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Routine</Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+        <Text style={styles.headerTitle}>
+          {editing ? 'Edit Routine' : 'Create Routine'}
+        </Text>
+        <TouchableOpacity onPress={handleSavePress} style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Routine Title Input */}
+      {/* ── Routine Title Input ────────────────────────────────────────── */}
       <View style={styles.titleSection}>
         <TextInput
           placeholder="Routine title"
           value={title}
-          onChangeText={setTitle}
+          onChangeText={(t) => { setTitle(t); setIsDirty(true); }}
           style={styles.titleInput}
           placeholderTextColor={theme.colors.muted}
         />
       </View>
 
-      {/* Exercises List */}
+      {/* ── Folder Picker Row ──────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={styles.folderRow}
+        onPress={() => setActiveModal({ type: 'folderPicker' })}
+        activeOpacity={0.75}
+      >
+        <Ionicons
+          name="folder-open-outline"
+          size={18}
+          color={selectedFolder ? theme.colors.accent : theme.colors.muted}
+        />
+        <Text
+          style={[
+            styles.folderRowText,
+            selectedFolder && { color: theme.colors.accent },
+          ]}
+        >
+          {selectedFolder ? selectedFolder.name : 'No folder — tap to assign'}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.muted} />
+      </TouchableOpacity>
+
+      {/* ── Exercises List ─────────────────────────────────────────────── */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {exercises.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="barbell" size={56} color={theme.colors.muted} style={{ marginBottom: theme.spacing.lg }} />
-            <Text style={styles.emptyTitle}>Get started by adding an exercise to your routine.</Text>
+            <Ionicons
+              name="barbell"
+              size={56}
+              color={theme.colors.muted}
+              style={{ marginBottom: theme.spacing.lg }}
+            />
+            <Text style={styles.emptyTitle}>
+              Get started by adding an exercise to your routine.
+            </Text>
           </View>
         ) : (
           <View style={styles.exercisesList}>
             {exercises.map((exercise) => {
-              const state = exerciseStates.get(exercise.id) || {
+              const state = exerciseStates.get(exercise.id) ?? {
                 notes: '',
                 restTimerDuration: 0,
                 sets: [],
@@ -243,7 +347,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
               return (
                 <View key={exercise.id} style={styles.exerciseCard}>
-                  {/* Exercise Header */}
+                  {/* Exercise header */}
                   <View style={styles.exerciseHeader}>
                     <View style={styles.exerciseHeaderContent}>
                       <View style={styles.exerciseIcon}>
@@ -253,9 +357,15 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                     </View>
                     <TouchableOpacity
                       style={styles.menuButton}
-                      onPress={() => setShowExerciseMenu(exercise.id)}
+                      onPress={() =>
+                        setActiveModal({ type: 'exerciseMenu', exerciseId: exercise.id })
+                      }
                     >
-                      <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.muted} />
+                      <Ionicons
+                        name="ellipsis-vertical"
+                        size={20}
+                        color={theme.colors.muted}
+                      />
                     </TouchableOpacity>
                   </View>
 
@@ -271,47 +381,65 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   {/* Rest Timer */}
                   <TouchableOpacity
                     style={styles.restTimerButton}
-                    onPress={() => setShowRestTimerModal(exercise.id)}
+                    onPress={() =>
+                      setActiveModal({ type: 'restTimer', exerciseId: exercise.id })
+                    }
                   >
                     <Ionicons
                       name="timer"
                       size={20}
-                      color={state.restTimerDuration > 0 ? theme.colors.accent : theme.colors.muted}
+                      color={
+                        state.restTimerDuration > 0
+                          ? theme.colors.accent
+                          : theme.colors.muted
+                      }
                     />
                     <Text
                       style={[
                         styles.restTimerText,
-                        { color: state.restTimerDuration > 0 ? theme.colors.accent : theme.colors.muted },
+                        {
+                          color:
+                            state.restTimerDuration > 0
+                              ? theme.colors.accent
+                              : theme.colors.muted,
+                        },
                       ]}
                     >
-                      Rest Timer: {state.restTimerDuration > 0 ? `${state.restTimerDuration}s` : 'OFF'}
+                      Rest Timer:{' '}
+                      {state.restTimerDuration > 0
+                        ? `${state.restTimerDuration}s`
+                        : 'OFF'}
                     </Text>
                   </TouchableOpacity>
 
                   {/* Sets Grid */}
                   <View style={styles.setsContainer}>
-                    {/* Header Row */}
                     <View style={styles.setsHeaderRow}>
                       <Text style={[styles.setGridCell, styles.setLabel]}>SET</Text>
                       <Text style={[styles.setGridCell, styles.weightLabel]}>KG</Text>
                       <Text style={[styles.setGridCell, styles.repsLabel]}>REPS</Text>
                     </View>
 
-                    {/* Set Rows */}
                     {state.sets.map((set, index) => (
                       <View key={set.id} style={styles.setRow}>
-                        <Text style={[styles.setGridCell, styles.setNumber]}>{index + 1}</Text>
+                        <Text style={[styles.setGridCell, styles.setNumber]}>
+                          {index + 1}
+                        </Text>
                         <TextInput
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.weight}
-                          onChangeText={(val) => updateSet(exercise.id, set.id, 'weight', val)}
+                          onChangeText={(val) =>
+                            updateSet(exercise.id, set.id, 'weight', val)
+                          }
                           keyboardType="decimal-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
                         <TextInput
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.reps}
-                          onChangeText={(val) => updateSet(exercise.id, set.id, 'reps', val)}
+                          onChangeText={(val) =>
+                            updateSet(exercise.id, set.id, 'reps', val)
+                          }
                           keyboardType="number-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
@@ -319,7 +447,6 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                     ))}
                   </View>
 
-                  {/* Add Set Button */}
                   <TouchableOpacity
                     style={styles.addSetButton}
                     onPress={() => addSet(exercise.id)}
@@ -333,89 +460,302 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         )}
       </ScrollView>
 
-      {/* Add Exercise Button */}
+      {/* ── Add Exercise Button ────────────────────────────────────────── */}
       <View style={styles.actionsSection}>
         <Button title="+ Add exercise" onPress={handleAddExercise} fullWidth />
       </View>
 
-      {/* Rest Timer Modal */}
+      {/* ════════════════════════════════════════════════════════════════
+          MODALS
+      ════════════════════════════════════════════════════════════════ */}
+
+      {/* ── Confirm Save ────────────────────────────────────────────────── */}
       <Modal
-        visible={showRestTimerModal !== null}
+        visible={activeModal?.type === 'confirmSave'}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowRestTimerModal(null)}
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="checkmark-circle-outline" size={40} color={theme.colors.accent} />
+            </View>
+            <Text style={styles.modalTitle}>Save Routine?</Text>
+            <Text style={styles.modalSubtitle}>
+              "{title.trim()}" will be saved
+              {selectedFolder ? ` to "${selectedFolder.name}"` : ' without a folder'}.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
+                <Text style={styles.modalBtnSecondaryText}>Not Yet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={commitSave}>
+                <Text style={styles.modalBtnPrimaryText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Confirm Cancel / Discard ─────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'confirmCancel'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="warning-outline" size={40} color={theme.colors.danger} />
+            </View>
+            <Text style={styles.modalTitle}>Discard Changes?</Text>
+            <Text style={styles.modalSubtitle}>
+              Any unsaved changes to this routine will be lost.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
+                <Text style={styles.modalBtnSecondaryText}>Keep Editing</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: theme.colors.danger }]}
+                onPress={() => { closeModal(); navigation.goBack(); }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Confirm Remove Exercise ──────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'confirmRemoveExercise'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="trash-outline" size={40} color={theme.colors.danger} />
+            </View>
+            <Text style={styles.modalTitle}>Remove Exercise?</Text>
+            <Text style={styles.modalSubtitle}>
+              {activeModal?.type === 'confirmRemoveExercise'
+                ? `"${exercises.find((e) => e.id === activeModal.exerciseId)?.name ?? 'This exercise'}" will be removed from this routine.`
+                : ''}
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
+                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: theme.colors.danger }]}
+                onPress={() => {
+                  if (activeModal?.type === 'confirmRemoveExercise') {
+                    removeExercise(activeModal.exerciseId);
+                  }
+                  closeModal();
+                }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Folder Picker ────────────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'folderPicker'}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={closeModal}
+        >
+          <View style={styles.sheetContent}>
+            <Text style={styles.sheetTitle}>Assign to Folder</Text>
+
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {/* No folder option */}
+              <TouchableOpacity
+                style={styles.folderOption}
+                onPress={() => { setSelectedFolderId(undefined); closeModal(); }}
+              >
+                <Ionicons
+                  name="close-circle-outline"
+                  size={20}
+                  color={!selectedFolderId ? theme.colors.accent : theme.colors.muted}
+                />
+                <Text
+                  style={[
+                    styles.folderOptionText,
+                    !selectedFolderId && { color: theme.colors.accent },
+                  ]}
+                >
+                  No Folder
+                </Text>
+                {!selectedFolderId && (
+                  <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                )}
+              </TouchableOpacity>
+
+              {folders.map((folder) => (
+                <TouchableOpacity
+                  key={folder.id}
+                  style={styles.folderOption}
+                  onPress={() => { setSelectedFolderId(folder.id); closeModal(); }}
+                >
+                  <Ionicons
+                    name="folder-outline"
+                    size={20}
+                    color={
+                      selectedFolderId === folder.id
+                        ? theme.colors.accent
+                        : theme.colors.muted
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.folderOptionText,
+                      selectedFolderId === folder.id && { color: theme.colors.accent },
+                    ]}
+                  >
+                    {folder.name}
+                  </Text>
+                  {selectedFolderId === folder.id && (
+                    <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Create new folder */}
+            <TouchableOpacity
+              style={styles.newFolderBtn}
+              onPress={() => {
+                closeModal();
+                setTimeout(() => setActiveModal({ type: 'createFolder' }), 300);
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={theme.colors.accent} />
+              <Text style={styles.newFolderBtnText}>Create New Folder</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Create Folder ────────────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'createFolder'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
+            </View>
+            <Text style={styles.modalTitle}>New Folder</Text>
+            <TextInput
+              placeholder="Folder name"
+              value={newFolderName}
+              onChangeText={setNewFolderName}
+              style={styles.folderNameInput}
+              placeholderTextColor={theme.colors.muted}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalBtnSecondary}
+                onPress={() => { setNewFolderName(''); closeModal(); }}
+              >
+                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalBtnPrimary,
+                  !newFolderName.trim() && { opacity: 0.4 },
+                ]}
+                onPress={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Rest Timer ───────────────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'restTimer'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Rest Timer</Text>
-            {showRestTimerModal && exercises.find((ex) => ex.id === showRestTimerModal)?.name && (
+            {activeModal?.type === 'restTimer' && (
               <Text style={styles.modalSubtitle}>
-                {exercises.find((ex) => ex.id === showRestTimerModal)?.name}
+                {exercises.find((ex) => ex.id === activeModal.exerciseId)?.name}
               </Text>
             )}
-
             {REST_TIMER_OPTIONS.map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
                   styles.timerOption,
-                  showRestTimerModal &&
-                    exerciseStates.get(showRestTimerModal)?.restTimerDuration === option.value &&
+                  activeModal?.type === 'restTimer' &&
+                    exerciseStates.get(activeModal.exerciseId)?.restTimerDuration ===
+                      option.value &&
                     styles.timerOptionSelected,
                 ]}
-                onPress={() => showRestTimerModal && updateRestTimer(showRestTimerModal, option.value)}
+                onPress={() =>
+                  activeModal?.type === 'restTimer' &&
+                  updateRestTimer(activeModal.exerciseId, option.value)
+                }
               >
                 <Text style={styles.timerOptionText}>{option.label}</Text>
               </TouchableOpacity>
             ))}
-
-            <Button title="Done" onPress={() => setShowRestTimerModal(null)} fullWidth style={styles.modalButton} />
+            <Button title="Done" onPress={closeModal} fullWidth style={styles.modalButton} />
           </View>
         </View>
       </Modal>
 
-      {/* Exercise Menu Modal */}
+      {/* ── Exercise Menu (bottom sheet) ──────────────────────────────────── */}
       <Modal
-        visible={showExerciseMenu !== null}
+        visible={activeModal?.type === 'exerciseMenu'}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowExerciseMenu(null)}
+        onRequestClose={closeModal}
       >
         <TouchableOpacity
-          style={styles.menuOverlay}
+          style={styles.sheetOverlay}
           activeOpacity={1}
-          onPress={() => setShowExerciseMenu(null)}
+          onPress={closeModal}
         >
-          <View style={styles.menuContent}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowExerciseMenu(null);
-                // Handle reorder
-              }}
-            >
+          <View style={styles.sheetContent}>
+            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
               <Ionicons name="swap-vertical" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Reorder Exercises</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowExerciseMenu(null);
-                // Handle replace
-              }}
-            >
+            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
               <Ionicons name="sync" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Replace Exercise</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowExerciseMenu(null);
-                // Handle superset
-              }}
-            >
+            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
               <Ionicons name="add-circle" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Add To Superset</Text>
             </TouchableOpacity>
@@ -423,14 +763,20 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
             <TouchableOpacity
               style={[styles.menuItem, styles.menuItemDanger]}
               onPress={() => {
-                if (showExerciseMenu) {
-                  removeExercise(showExerciseMenu);
-                }
-                setShowExerciseMenu(null);
+                const id =
+                  activeModal?.type === 'exerciseMenu' ? activeModal.exerciseId : null;
+                closeModal();
+                if (id)
+                  setTimeout(
+                    () => setActiveModal({ type: 'confirmRemoveExercise', exerciseId: id }),
+                    300
+                  );
               }}
             >
-              <Ionicons name="trash" size={20} color="#ff6b6b" />
-              <Text style={[styles.menuItemText, { color: '#ff6b6b' }]}>Remove Exercise</Text>
+              <Ionicons name="trash" size={20} color={theme.colors.danger} />
+              <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>
+                Remove Exercise
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -439,6 +785,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   );
 };
 
+// ── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -470,9 +817,12 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
   },
+
+  /* ── Title ─────────────────────────────────────────────────────────── */
   titleSection: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
@@ -483,6 +833,24 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
   },
+
+  /* ── Folder Row ────────────────────────────────────────────────────── */
+  folderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  folderRowText: {
+    flex: 1,
+    fontSize: theme.font.sizeSm,
+    color: theme.colors.muted,
+  },
+
+  /* ── Content ───────────────────────────────────────────────────────── */
   content: {
     flex: 1,
     paddingHorizontal: theme.spacing.lg,
@@ -535,9 +903,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     color: theme.colors.accent,
   },
-  menuButton: {
-    padding: theme.spacing.sm,
-  },
+  menuButton: { padding: theme.spacing.sm },
   notesInput: {
     backgroundColor: theme.colors.bg,
     borderRadius: theme.radius.sm,
@@ -558,9 +924,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightMedium,
     marginLeft: theme.spacing.sm,
   },
-  setsContainer: {
-    marginBottom: theme.spacing.md,
-  },
+  setsContainer: { marginBottom: theme.spacing.md },
   setsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -582,21 +946,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeSm,
     color: theme.colors.text,
   },
-  setLabel: {
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.muted,
-  },
-  weightLabel: {
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.muted,
-  },
-  repsLabel: {
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.muted,
-  },
-  setNumber: {
-    fontWeight: theme.font.weightBold,
-  },
+  setLabel:   { fontWeight: theme.font.weightBold, color: theme.colors.muted },
+  weightLabel:{ fontWeight: theme.font.weightBold, color: theme.colors.muted },
+  repsLabel:  { fontWeight: theme.font.weightBold, color: theme.colors.muted },
+  setNumber:  { fontWeight: theme.font.weightBold },
   setInput: {
     backgroundColor: theme.colors.bg,
     borderRadius: theme.radius.sm,
@@ -621,11 +974,12 @@ const styles = StyleSheet.create({
   actionsSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.lg,
-    gap: theme.spacing.md,
   },
+
+  /* ── Shared Modal Shell ─────────────────────────────────────────────── */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing.lg,
@@ -633,9 +987,15 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
+    padding: theme.spacing.xl,
     width: '100%',
+    alignItems: 'center',
     gap: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalIconWrap: {
+    marginBottom: theme.spacing.sm,
   },
   modalTitle: {
     fontSize: theme.font.sizeLg,
@@ -647,39 +1007,123 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeSm,
     color: theme.colors.muted,
     textAlign: 'center',
+    lineHeight: 20,
   },
+  modalActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    width: '100%',
+  },
+  modalBtnSecondary: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalBtnSecondaryText: {
+    color: theme.colors.text,
+    fontWeight: theme.font.weightBold,
+    fontSize: theme.font.sizeMd,
+  },
+  modalBtnPrimary: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.accent,
+  },
+  modalBtnPrimaryText: {
+    color: theme.colors.accentText,
+    fontWeight: theme.font.weightBold,
+    fontSize: theme.font.sizeMd,
+  },
+  modalButton: { marginTop: theme.spacing.md },
+
+  /* ── Folder Picker Input ─────────────────────────────────────────────── */
+  folderNameInput: {
+    width: '100%',
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+
+  /* ── Bottom Sheet ────────────────────────────────────────────────────── */
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheetContent: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  sheetTitle: {
+    fontSize: theme.font.sizeLg,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.text,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+
+  /* ── Folder List Options ─────────────────────────────────────────────── */
+  folderOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  folderOptionText: {
+    flex: 1,
+    fontSize: theme.font.sizeMd,
+    color: theme.colors.text,
+  },
+  newFolderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.lg,
+  },
+  newFolderBtnText: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.accent,
+  },
+
+  /* ── Rest Timer Options ──────────────────────────────────────────────── */
   timerOption: {
+    width: '100%',
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     backgroundColor: theme.colors.bg,
     borderRadius: theme.radius.md,
     alignItems: 'center',
   },
-  timerOptionSelected: {
-    backgroundColor: theme.colors.accent,
-  },
+  timerOptionSelected: { backgroundColor: theme.colors.accent },
   timerOptionText: {
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightMedium,
     color: theme.colors.text,
   },
-  modalButton: {
-    marginTop: theme.spacing.md,
-  },
-  // Exercise Menu Styles
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'flex-end',
-    alignItems: 'stretch',
-  },
-  menuContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    overflow: 'hidden',
-    gap: 0,
-  },
+
+  /* ── Exercise Menu ───────────────────────────────────────────────────── */
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -689,9 +1133,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  menuItemDanger: {
-    borderBottomWidth: 0,
-  },
+  menuItemDanger: { borderBottomWidth: 0 },
   menuItemText: {
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightMedium,

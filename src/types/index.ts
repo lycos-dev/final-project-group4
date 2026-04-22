@@ -45,6 +45,15 @@ export interface Routine {
   name: string;
   createdAt: number;
   exercises: RoutineExercise[];
+  /** Optional folder this routine belongs to. */
+  folderId?: string;
+}
+
+/** A user-created folder that groups routines together. */
+export interface RoutineFolder {
+  id: string;
+  name: string;
+  createdAt: number;
 }
 
 /** Difficulty level for a preset routine. */
