@@ -6,6 +6,7 @@ import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { ExerciseFormScreen } from '../screens/exercises/ExerciseFormScreen';
 import { ExerciseDetailScreen } from '../screens/exercises/ExerciseDetailScreen';
+import { CustomLibraryScreen } from '../screens/exercises/CustomLibraryScreen';
 import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
 import { SettingsScreen } from '../screens/profile/SettingsScreen';
 import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
@@ -22,6 +23,7 @@ export type RootStackParamList = {
   Tabs: undefined;
   ExerciseDetail: { exerciseId: string };
   ExerciseForm: { exerciseId?: string };
+  CustomLibrary: undefined;
   EditProfile: undefined;
   Settings: undefined;
   LogWorkout: { exercisesToAdd?: Exercise[] };
@@ -65,6 +67,7 @@ export default function RootNavigator() {
           <Stack.Screen name="Tabs"          component={BottomTabs}          options={{ headerShown: false }} />
           <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} options={{ title: 'Exercise' }} />
           <Stack.Screen name="ExerciseForm"  component={ExerciseFormScreen}  options={{ presentation: 'modal', title: 'Exercise' }} />
+          <Stack.Screen name="CustomLibrary" component={CustomLibraryScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditProfile"   component={EditProfileScreen}   options={{ presentation: 'modal', title: 'Edit Profile' }} />
           <Stack.Screen name="Settings"      component={SettingsScreen}      options={{ title: 'Settings' }} />
           <Stack.Screen name="LogWorkout"    component={LogWorkoutScreen}    options={{ headerShown: false }} />

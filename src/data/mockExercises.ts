@@ -23,7 +23,7 @@ export const MOCK_EXERCISES: Exercise[] = [
     muscleGroup: 'Back',
     equipment: 'Bodyweight',
     // TODO: Insert real photo/GIF link here
-    imageUrl: 'https://via.placeholder.com/400x300/16161D/C6FF3D?text=Pull+Up',
+    imageUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Pull-up.gif',
     steps: [
       'Hang with arms fully extended, overhand grip.',
       'Depress your shoulder blades, then pull chest toward the bar.',
