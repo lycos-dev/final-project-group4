@@ -193,7 +193,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   };
 
   const handleFinish = () => {
-    clearWorkout();
+    clearWorkout(route.params?.routineName);
     navigation.goBack();
   };
 

@@ -42,12 +42,6 @@ export const WorkoutCompletionCard = ({
             <Text style={styles.username}>{username}</Text>
             <View style={styles.metaRow}>
               <Text style={styles.timestamp}>{timestamp}</Text>
-              <MaterialCommunityIcons
-                name="lock"
-                size={12}
-                color={theme.colors.muted}
-              />
-              <Text style={styles.privacy}>Only you</Text>
             </View>
           </View>
         </View>

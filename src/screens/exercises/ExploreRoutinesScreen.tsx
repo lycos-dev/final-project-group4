@@ -59,7 +59,7 @@ export const ExploreRoutinesScreen = () => {
     const doStart = () => {
       clearWorkout();
       addExercises(routine.exercises);
-      nav.navigate('LogWorkout', { exercisesToAdd: [] });
+      nav.navigate('LogWorkout', { exercisesToAdd: [], routineName: routine.name });
     };
 
     // Warn if a workout is already in progress

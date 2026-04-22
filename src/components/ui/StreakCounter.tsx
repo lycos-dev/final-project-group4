@@ -13,8 +13,8 @@ export const StreakCounter = ({
   currentMonth = new Date().getMonth(),
   currentYear = new Date().getFullYear(),
 }: Props) => {
-  const { getCompletedDatesThisMonth } = useWorkout();
-  const workoutDays = useMemo(() => getCompletedDatesThisMonth(), []);
+  const { getCompletedDatesThisMonth, completedWorkouts } = useWorkout();
+  const workoutDays = useMemo(() => getCompletedDatesThisMonth(), [completedWorkouts]);
   const currentDay = new Date().getDate();
 
   const monthData = useMemo(() => {

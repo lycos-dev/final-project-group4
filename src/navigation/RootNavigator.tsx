@@ -30,7 +30,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Goals: undefined;
-  LogWorkout: { exercisesToAdd?: Exercise[] };
+  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string };
   AddExercise: undefined;
   // targetFolderId — when set, the routine is pre-assigned to that folder
   // and the folder picker is hidden (user came from inside a folder)
