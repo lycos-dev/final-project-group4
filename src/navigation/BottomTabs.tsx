@@ -1,13 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   Animated,
   Dimensions,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
-import { TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,9 +30,10 @@ const TABS = [
   { name: 'Profile', label: 'Profile',   icon: 'person',  iconOutline: 'person-outline'  },
 ] as const;
 
-const TAB_COUNT = TABS.length;
-const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
+const TAB_COUNT  = TABS.length;
+const TAB_WIDTH  = SCREEN_WIDTH / TAB_COUNT;
 const BAR_HEIGHT = 64;
+const ICON_SIZE  = 22;
 
 interface TabButtonProps {
   tab:      typeof TABS[number];
@@ -42,22 +42,18 @@ interface TabButtonProps {
 }
 
 const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
-  const iconScale    = useRef(new Animated.Value(isActive ? 1.12 : 1)).current;
-  const labelOpacity = useRef(new Animated.Value(isActive ? 1 : 0.45)).current;
-  const labelSlide   = useRef(new Animated.Value(isActive ? 0 : 3)).current;
+  const iconScale    = useRef(new Animated.Value(isActive ? 1.1 : 1)).current;
+  const labelOpacity = useRef(new Animated.Value(isActive ? 1 : 0.6)).current;
   const pressScale   = useRef(new Animated.Value(1)).current;
-  const pillOpacity  = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(iconScale,    { toValue: isActive ? 1.12 : 1,  useNativeDriver: true, tension: 220, friction: 10 }),
-      Animated.timing(pillOpacity,  { toValue: isActive ? 1 : 0,     duration: 180,          useNativeDriver: true }),
-      Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.45,  duration: 180,          useNativeDriver: true }),
-      Animated.spring(labelSlide,   { toValue: isActive ? 0 : 3,     useNativeDriver: true, tension: 200, friction: 14 }),
+      Animated.spring(iconScale,    { toValue: isActive ? 1.1 : 1, useNativeDriver: true, tension: 220, friction: 10 }),
+      Animated.timing(labelOpacity, { toValue: isActive ? 1 : 0.6, duration: 160, useNativeDriver: true }),
     ]).start();
   }, [isActive]);
 
-  const onPressIn  = () => Animated.spring(pressScale, { toValue: 0.88, useNativeDriver: true, tension: 300, friction: 10 }).start();
+  const onPressIn  = () => Animated.spring(pressScale, { toValue: 0.92, useNativeDriver: true, tension: 300, friction: 10 }).start();
   const onPressOut = () => Animated.spring(pressScale, { toValue: 1,    useNativeDriver: true, tension: 200, friction: 8  }).start();
 
   return (
@@ -69,27 +65,21 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
       style={[styles.tabBtn, { width: TAB_WIDTH }]}
     >
       <Animated.View style={[styles.tabInner, { transform: [{ scale: pressScale }] }]}>
-        {/* Pill rendered first = behind everything */}
-        <Animated.View style={[styles.pill, { opacity: pillOpacity }]} />
-
-        {/* Icon on top of pill */}
-        <Animated.View style={{ transform: [{ scale: iconScale }], marginBottom: 3 }}>
+        <Animated.View style={[styles.iconWrap, { transform: [{ scale: iconScale }] }]}>
           <Ionicons
             name={(isActive ? tab.icon : tab.iconOutline) as any}
-            size={22}
+            size={ICON_SIZE}
             color={isActive ? theme.colors.accent : theme.colors.muted}
           />
         </Animated.View>
 
-        {/* Label on top of pill */}
         <Animated.Text
           numberOfLines={1}
           style={[
             styles.tabLabel,
             {
-              color:     isActive ? theme.colors.accent : theme.colors.muted,
-              opacity:   labelOpacity,
-              transform: [{ translateY: labelSlide }],
+              color:   isActive ? theme.colors.accent : theme.colors.muted,
+              opacity: labelOpacity,
             },
           ]}
         >
@@ -185,7 +175,6 @@ export default function BottomTabs() {
 
 const styles = StyleSheet.create({
   barWrapper: {
-    // NOT position:absolute — navigator handles layout so content is NOT hidden behind bar
     backgroundColor: theme.colors.surface,
     shadowColor:     '#000',
     shadowOpacity:   0.12,
@@ -223,15 +212,8 @@ const styles = StyleSheet.create({
     paddingVertical:   4,
     paddingHorizontal: 10,
   },
-  // Pill is absolutely positioned BEHIND; it doesn't push icon or label
-  pill: {
-    position:        'absolute',
-    width:           72,
-    height:          46,
-    borderRadius:    23,
-    backgroundColor: theme.colors.accent,
-    opacity:         0.14,
-    alignSelf:       'center',
+  iconWrap: {
+    marginBottom: 3,
   },
   tabLabel: {
     fontSize:      11,
