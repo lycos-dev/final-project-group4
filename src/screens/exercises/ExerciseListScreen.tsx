@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,6 +7,11 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  Animated,
+  PanResponder,
+  LayoutAnimation,
+  UIManager,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,6 +24,11 @@ import { theme } from '../../theme/theme';
 import { useRoutine } from '../../context/RoutineContext';
 import { Routine, RoutineFolder } from '../../types';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 // ── Modal type union ─────────────────────────────────────────────────────────
@@ -27,7 +37,9 @@ type ActiveModal =
   | { type: 'confirmDeleteFolder'; folder: RoutineFolder }
   | { type: 'renameFolder'; folder: RoutineFolder }
   | { type: 'createFolder' }
-  | { type: 'routineMenu'; routine: Routine };
+  | { type: 'routineMenu'; routine: Routine }
+  | { type: 'noRoutineInFolder'; folderName: string; folderId: string }
+  | { type: 'moveRoutine'; routine: Routine };
 
 const TIPS = [
   {
@@ -50,26 +62,135 @@ const TIPS = [
   },
 ];
 
+// ── BottomSheetModal ──────────────────────────────────────────────────────────
+const BottomSheetModal = ({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) => {
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+    } else {
+      Animated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={onClose}>
+        <Animated.View
+          style={{ transform: [{ translateY: slideAnim }] }}
+          onStartShouldSetResponder={() => true}
+        >
+          {children}
+        </Animated.View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+// ── DraggableRoutineCard ──────────────────────────────────────────────────────
+interface DraggableRoutineCardProps {
+  routine: Routine;
+  onMenuPress: (routine: Routine) => void;
+  onDragStart: (routine: Routine, pageY: number) => void;
+  isDragging: boolean;
+}
+
+const DraggableRoutineCard = ({
+  routine,
+  onMenuPress,
+  onDragStart,
+  isDragging,
+}: DraggableRoutineCardProps) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        Animated.spring(scale, { toValue: 1.04, useNativeDriver: true }).start();
+        onDragStart(routine, evt.nativeEvent.pageY);
+      },
+      onPanResponderRelease: () => {
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.routineCard,
+        isDragging && styles.routineCardDragging,
+        { transform: [{ scale }] },
+      ]}
+    >
+      {/* Drag handle — hold to drag */}
+      <View style={styles.dragHandle} {...panResponder.panHandlers}>
+        <Ionicons name="reorder-three-outline" size={20} color={theme.colors.muted} />
+      </View>
+
+      <View style={styles.routineCardLeft}>
+        <View style={styles.routineCardIcon}>
+          <MaterialCommunityIcons name="dumbbell" size={18} color={theme.colors.accent} />
+        </View>
+        <View style={styles.routineCardInfo}>
+          <Text style={styles.routineCardName} numberOfLines={1}>
+            {routine.name}
+          </Text>
+          <Text style={styles.routineCardMeta}>
+            {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        onPress={() => onMenuPress(routine)}
+      >
+        <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.muted} />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
 export const ExerciseListScreen = () => {
   const nav = useNavigation<Nav>();
-  const {
-    routines,
-    folders,
-    deleteRoutine,
-    deleteFolder,
-    addFolder,
-    assignRoutineToFolder,
-    updateRoutine,
-  } = useRoutine();
+  const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
+    useRoutine();
 
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
+  // ── Drag state ──────────────────────────────────────────────────────────────
+  const [draggingRoutine, setDraggingRoutine] = useState<Routine | null>(null);
+  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null); // folderId | 'unfoldered'
+  const floatAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const dropZoneLayouts = useRef<Record<string, { y: number; height: number }>>({});
+  const scrollOffsetY = useRef(0);
+
+  // We need a ref to draggingRoutine/hoveredTarget inside the PanResponder
+  const draggingRoutineRef = useRef<Routine | null>(null);
+  const hoveredTargetRef = useRef<string | null>(null);
+
   const closeModal = () => setActiveModal(null);
 
-  // ── Folder collapse toggle ────────────────────────────────────────────────
   const toggleFolder = (folderId: string) => {
     setCollapsedFolders((prev) => {
       const next = new Set(prev);
@@ -78,26 +199,67 @@ export const ExerciseListScreen = () => {
     });
   };
 
-  // ── Computed groups ───────────────────────────────────────────────────────
   const unfolderedRoutines = routines.filter((r) => !r.folderId);
-  const routinesInFolder = (folderId: string) =>
-    routines.filter((r) => r.folderId === folderId);
+  const routinesInFolder = (folderId: string) => routines.filter((r) => r.folderId === folderId);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Drag handlers ────────────────────────────────────────────────────────────
+  const handleDragStart = useCallback((routine: Routine, pageY: number) => {
+    draggingRoutineRef.current = routine;
+    setDraggingRoutine(routine);
+    floatAnim.setValue({ x: 0, y: pageY - 30 });
+  }, []);
+
+  const handleDragMove = useCallback((pageY: number) => {
+    floatAnim.setValue({ x: 0, y: pageY - 30 });
+    const absoluteY = pageY + scrollOffsetY.current;
+    let found: string | null = null;
+    for (const [key, zone] of Object.entries(dropZoneLayouts.current)) {
+      if (absoluteY >= zone.y && absoluteY <= zone.y + zone.height) {
+        found = key;
+        break;
+      }
+    }
+    if (found !== hoveredTargetRef.current) {
+      hoveredTargetRef.current = found;
+      setHoveredTarget(found);
+    }
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    const routine = draggingRoutineRef.current;
+    const target = hoveredTargetRef.current;
+    if (routine && target !== null) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      assignRoutineToFolder(routine.id, target === 'unfoldered' ? undefined : target);
+    }
+    draggingRoutineRef.current = null;
+    hoveredTargetRef.current = null;
+    setDraggingRoutine(null);
+    setHoveredTarget(null);
+  }, [assignRoutineToFolder]);
+
+  // Global PanResponder on the ScrollView to track finger movement during drag
+  const scrollPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, _gs) => draggingRoutineRef.current !== null,
+      onPanResponderMove: (evt) => handleDragMove(evt.nativeEvent.pageY),
+      onPanResponderRelease: handleDragEnd,
+      onPanResponderTerminate: handleDragEnd,
+    })
+  ).current;
+
+  const registerDropZone = (key: string, pageY: number, height: number) => {
+    dropZoneLayouts.current[key] = { y: pageY, height };
+  };
+
+  // ── Other handlers ────────────────────────────────────────────────────────────
   const handleRenameFolder = () => {
     if (activeModal?.type !== 'renameFolder' || !renameFolderValue.trim()) return;
-    updateRoutine; // unused — folder rename lives in context
-    // We update via a simple inline patch through context addFolder isn't right,
-    // but RoutineContext exposes folders as state; the cleanest path is to rename
-    // via a new method we'll call from here using the existing updateRoutine pattern.
-    // For now we pass the rename through deleteFolder + addFolder + re-assign.
     const oldId = activeModal.folder.id;
     const affected = routines.filter((r) => r.folderId === oldId);
     deleteFolder(oldId);
     const newFolder = addFolder(renameFolderValue.trim());
-    affected.forEach((r) =>
-      assignRoutineToFolder(r.id, newFolder.id)
-    );
+    affected.forEach((r) => assignRoutineToFolder(r.id, newFolder.id));
     setRenameFolderValue('');
     closeModal();
   };
@@ -109,48 +271,31 @@ export const ExerciseListScreen = () => {
     closeModal();
   };
 
-  // ── Sub-components ────────────────────────────────────────────────────────
+  const handleMoveRoutine = (targetFolderId: string | undefined) => {
+    if (activeModal?.type !== 'moveRoutine') return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    assignRoutineToFolder(activeModal.routine.id, targetFolderId);
+    closeModal();
+  };
 
-  const RoutineCard = ({ routine }: { routine: Routine }) => (
-    <TouchableOpacity
-      style={styles.routineCard}
-      activeOpacity={0.75}
-      onPress={() => nav.navigate('CreateRoutine', { routineId: routine.id })}
-      onLongPress={() => setActiveModal({ type: 'routineMenu', routine })}
-    >
-      <View style={styles.routineCardLeft}>
-        <View style={styles.routineCardIcon}>
-          <MaterialCommunityIcons
-            name="dumbbell"
-            size={18}
-            color={theme.colors.accent}
-          />
-        </View>
-        <View style={styles.routineCardInfo}>
-          <Text style={styles.routineCardName} numberOfLines={1}>
-            {routine.name}
-          </Text>
-          <Text style={styles.routineCardMeta}>
-            {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-      </View>
-      <TouchableOpacity
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        onPress={() => setActiveModal({ type: 'routineMenu', routine })}
-      >
-        <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.muted} />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-
+  // ── FolderSection sub-component ──────────────────────────────────────────────
   const FolderSection = ({ folder }: { folder: RoutineFolder }) => {
     const items = routinesInFolder(folder.id);
     const isCollapsed = collapsedFolders.has(folder.id);
+    const isHovered =
+      hoveredTarget === folder.id &&
+      draggingRoutine !== null &&
+      draggingRoutine.folderId !== folder.id;
 
     return (
-      <View style={styles.folderSection}>
-        {/* Folder header */}
+      <View
+        style={[styles.folderSection, isHovered && styles.folderSectionHovered]}
+        onLayout={(e) => {
+          e.target.measure((_x, _y, _w, h, _px, py) => {
+            registerDropZone(folder.id, py, h);
+          });
+        }}
+      >
         <TouchableOpacity
           style={styles.folderHeader}
           onPress={() => toggleFolder(folder.id)}
@@ -185,13 +330,48 @@ export const ExerciseListScreen = () => {
           />
         </TouchableOpacity>
 
-        {/* Routines inside folder */}
+        {/* Drop hint */}
+        {isHovered && (
+          <View style={styles.dropHint}>
+            <Ionicons name="arrow-down-circle-outline" size={14} color={theme.colors.accent} />
+            <Text style={styles.dropHintText}>Drop to move into "{folder.name}"</Text>
+          </View>
+        )}
+
         {!isCollapsed && (
           <View style={styles.folderRoutines}>
             {items.length === 0 ? (
-              <Text style={styles.emptyFolderText}>No routines in this folder yet.</Text>
+              <View style={styles.emptyFolderContainer}>
+                <Text style={styles.emptyFolderText}>No routines in this folder yet.</Text>
+                {/* ── Feature #1: creates routine pre-assigned to this folder ── */}
+                <TouchableOpacity
+                  style={styles.emptyFolderAction}
+                  onPress={() => nav.navigate('CreateRoutine', { targetFolderId: folder.id })}
+                >
+                  <Ionicons name="add-circle-outline" size={14} color={theme.colors.accent} />
+                  <Text style={styles.emptyFolderActionText}>Create a Routine</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
-              items.map((r) => <RoutineCard key={r.id} routine={r} />)
+              <>
+                {items.map((r) => (
+                  <DraggableRoutineCard
+                    key={r.id}
+                    routine={r}
+                    onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
+                    onDragStart={handleDragStart}
+                    isDragging={draggingRoutine?.id === r.id}
+                  />
+                ))}
+                {/* ── Feature #1: shortcut to add another routine to this folder ── */}
+                <TouchableOpacity
+                  style={styles.addToFolderBtn}
+                  onPress={() => nav.navigate('CreateRoutine', { targetFolderId: folder.id })}
+                >
+                  <Ionicons name="add-outline" size={14} color={theme.colors.muted} />
+                  <Text style={styles.addToFolderBtnText}>Add routine to this folder</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}
@@ -199,13 +379,21 @@ export const ExerciseListScreen = () => {
     );
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
+  const isUnfolderedHovered =
+    hoveredTarget === 'unfoldered' &&
+    draggingRoutine !== null &&
+    draggingRoutine.folderId !== undefined;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        scrollEventThrottle={16}
+        onScroll={(e) => { scrollOffsetY.current = e.nativeEvent.contentOffset.y; }}
+        // Attach global drag tracker only while a drag is active
+        {...(draggingRoutine ? scrollPanResponder.panHandlers : {})}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={styles.topSection}>
@@ -218,7 +406,6 @@ export const ExerciseListScreen = () => {
             style={styles.primaryButton}
           />
 
-          {/* Custom Library Banner */}
           <TouchableOpacity
             style={styles.libraryBanner}
             onPress={() => nav.navigate('CustomLibrary')}
@@ -233,24 +420,17 @@ export const ExerciseListScreen = () => {
               <View style={styles.libraryAccentDot} />
               <View style={styles.libraryLeft}>
                 <View style={styles.libraryIconWrap}>
-                  <MaterialCommunityIcons
-                    name="bookshelf"
-                    size={26}
-                    color={theme.colors.accent}
-                  />
+                  <MaterialCommunityIcons name="bookshelf" size={26} color={theme.colors.accent} />
                 </View>
                 <View style={styles.libraryText}>
                   <Text style={styles.libraryTitle}>My Custom Library</Text>
-                  <Text style={styles.librarySub}>
-                    Browse &amp; manage all your exercises
-                  </Text>
+                  <Text style={styles.librarySub}>Browse &amp; manage all your exercises</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Quick Action Cards */}
           <View style={styles.cardsGrid}>
             <TouchableOpacity
               style={styles.actionCard}
@@ -258,11 +438,7 @@ export const ExerciseListScreen = () => {
               activeOpacity={0.7}
             >
               <View style={styles.actionCardIcon}>
-                <MaterialCommunityIcons
-                  name="pencil-box-outline"
-                  size={26}
-                  color={theme.colors.accent}
-                />
+                <MaterialCommunityIcons name="pencil-box-outline" size={26} color={theme.colors.accent} />
               </View>
               <Text style={styles.cardTitle}>New Routine</Text>
               <Text style={styles.cardSub}>Build a custom plan</Text>
@@ -274,11 +450,7 @@ export const ExerciseListScreen = () => {
               activeOpacity={0.7}
             >
               <View style={styles.actionCardIcon}>
-                <Ionicons
-                  name="compass-outline"
-                  size={26}
-                  color={theme.colors.accent}
-                />
+                <Ionicons name="compass-outline" size={26} color={theme.colors.accent} />
               </View>
               <Text style={styles.cardTitle}>Explore</Text>
               <Text style={styles.cardSub}>Browse preset plans</Text>
@@ -287,7 +459,7 @@ export const ExerciseListScreen = () => {
         </View>
 
         {/* ── My Routines ─────────────────────────────────────────────── */}
-        {routines.length > 0 && (
+        {(routines.length > 0 || folders.length > 0) && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>MY ROUTINES</Text>
@@ -300,20 +472,46 @@ export const ExerciseListScreen = () => {
               </TouchableOpacity>
             </View>
 
+            {routines.length > 0 && (
+              <Text style={styles.dragHintLabel}>
+                Hold ≡ on a routine to drag and reassign it to a different folder
+              </Text>
+            )}
+
             <View style={styles.routinesContainer}>
-              {/* Folders first */}
               {folders.map((folder) => (
                 <FolderSection key={folder.id} folder={folder} />
               ))}
 
-              {/* Un-foldered routines */}
-              {unfolderedRoutines.length > 0 && (
-                <View style={styles.unfolderedGroup}>
-                  {folders.length > 0 && (
-                    <Text style={styles.unfolderedLabel}>NO FOLDER</Text>
+              {/* Un-foldered drop zone — always visible when drag is active or routines exist */}
+              {(unfolderedRoutines.length > 0 || (draggingRoutine && draggingRoutine.folderId)) && (
+                <View
+                  style={[
+                    styles.unfolderedGroup,
+                    isUnfolderedHovered && styles.unfolderedGroupHovered,
+                  ]}
+                  onLayout={(e) => {
+                    e.target.measure((_x, _y, _w, h, _px, py) => {
+                      registerDropZone('unfoldered', py, Math.max(h, 60));
+                    });
+                  }}
+                >
+                  {(folders.length > 0 || draggingRoutine) && (
+                    <View style={styles.unfolderedLabelRow}>
+                      <Text style={styles.unfolderedLabel}>NO FOLDER</Text>
+                      {isUnfolderedHovered && (
+                        <Text style={styles.dropHintInline}>← Drop here to remove from folder</Text>
+                      )}
+                    </View>
                   )}
                   {unfolderedRoutines.map((r) => (
-                    <RoutineCard key={r.id} routine={r} />
+                    <DraggableRoutineCard
+                      key={r.id}
+                      routine={r}
+                      onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
+                      onDragStart={handleDragStart}
+                      isDragging={draggingRoutine?.id === r.id}
+                    />
                   ))}
                 </View>
               )}
@@ -321,11 +519,38 @@ export const ExerciseListScreen = () => {
           </>
         )}
 
+        {/* Empty state */}
+        {routines.length === 0 && folders.length === 0 && (
+          <View style={styles.noRoutinesBanner}>
+            <View style={styles.noRoutinesRow}>
+              <Text style={styles.sectionLabel}>MY ROUTINES</Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal({ type: 'createFolder' })}
+                style={styles.newFolderHeaderBtn}
+              >
+                <Ionicons name="folder-open-outline" size={14} color={theme.colors.accent} />
+                <Text style={styles.newFolderHeaderText}>New Folder</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.noRoutinesCard}>
+              <Ionicons
+                name="albums-outline"
+                size={32}
+                color={theme.colors.muted}
+                style={{ marginBottom: theme.spacing.sm }}
+              />
+              <Text style={styles.noRoutinesTitle}>No routines yet</Text>
+              <Text style={styles.noRoutinesSub}>
+                Create a routine or add a folder to organize your workouts.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Quick Tips ───────────────────────────────────────────────── */}
-        <View style={[styles.sectionHeader, routines.length === 0 && { marginTop: theme.spacing.xl }]}>
+        <View style={[styles.sectionHeader, { marginTop: theme.spacing.xl }]}>
           <Text style={styles.sectionLabel}>QUICK TIPS</Text>
         </View>
-
         <View style={styles.tipsContainer}>
           {TIPS.map((tip) => (
             <View key={tip.id} style={styles.tipCard}>
@@ -341,55 +566,150 @@ export const ExerciseListScreen = () => {
         </View>
       </ScrollView>
 
+      {/* ── Floating drag ghost ──────────────────────────────────────────── */}
+      {draggingRoutine && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.dragGhost, { transform: floatAnim.getTranslateTransform() }]}
+        >
+          <MaterialCommunityIcons name="dumbbell" size={14} color={theme.colors.accentText} />
+          <Text style={styles.dragGhostText} numberOfLines={1}>
+            {draggingRoutine.name}
+          </Text>
+        </Animated.View>
+      )}
+
       {/* ════════════════════════════════════════════════════════════════
           MODALS
       ════════════════════════════════════════════════════════════════ */}
 
       {/* ── Routine Context Menu ─────────────────────────────────────────── */}
-      <Modal
-        visible={activeModal?.type === 'routineMenu'}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModal}
-      >
-        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={closeModal}>
-          <View style={styles.sheetContent}>
-            {activeModal?.type === 'routineMenu' && (
-              <Text style={styles.sheetTitle}>{activeModal.routine.name}</Text>
-            )}
+      <BottomSheetModal visible={activeModal?.type === 'routineMenu'} onClose={closeModal}>
+        <View style={styles.sheetContent}>
+          {activeModal?.type === 'routineMenu' && (
+            <Text style={styles.sheetTitle}>{activeModal.routine.name}</Text>
+          )}
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                const routine = activeModal?.type === 'routineMenu' ? activeModal.routine : null;
-                closeModal();
-                if (routine) nav.navigate('CreateRoutine', { routineId: routine.id });
-              }}
-            >
-              <Ionicons name="pencil-outline" size={20} color={theme.colors.accent} />
-              <Text style={styles.menuItemText}>Edit Routine</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              const r = activeModal?.type === 'routineMenu' ? activeModal.routine : null;
+              closeModal();
+              if (r) nav.navigate('CreateRoutine', { routineId: r.id });
+            }}
+          >
+            <Ionicons name="pencil-outline" size={20} color={theme.colors.accent} />
+            <Text style={styles.menuItemText}>Edit Routine</Text>
+          </TouchableOpacity>
 
+          {/* ── Feature #2: Move to Folder via menu ── */}
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              const r = activeModal?.type === 'routineMenu' ? activeModal.routine : null;
+              closeModal();
+              if (r) setTimeout(() => setActiveModal({ type: 'moveRoutine', routine: r }), 300);
+            }}
+          >
+            <Ionicons name="folder-outline" size={20} color={theme.colors.accent} />
+            <Text style={styles.menuItemText}>Move to Folder</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              const r = activeModal?.type === 'routineMenu' ? activeModal.routine : null;
+              closeModal();
+              if (r)
+                setTimeout(() => setActiveModal({ type: 'confirmDeleteRoutine', routine: r }), 300);
+            }}
+          >
+            <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
+            <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>
+              Delete Routine
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetModal>
+
+      {/* ── Move to Folder sheet ──────────────────────────────────────────── */}
+      <BottomSheetModal visible={activeModal?.type === 'moveRoutine'} onClose={closeModal}>
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>Move to Folder</Text>
+          {activeModal?.type === 'moveRoutine' && (
+            <Text style={styles.sheetSubtitle}>"{activeModal.routine.name}"</Text>
+          )}
+
+          <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                const routine = activeModal?.type === 'routineMenu' ? activeModal.routine : null;
-                closeModal();
-                if (routine)
-                  setTimeout(
-                    () => setActiveModal({ type: 'confirmDeleteRoutine', routine }),
-                    300
-                  );
-              }}
+              style={styles.folderPickerOption}
+              onPress={() => handleMoveRoutine(undefined)}
             >
-              <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
-              <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>
-                Delete Routine
+              <Ionicons
+                name="close-circle-outline"
+                size={20}
+                color={
+                  activeModal?.type === 'moveRoutine' && !activeModal.routine.folderId
+                    ? theme.colors.accent
+                    : theme.colors.muted
+                }
+              />
+              <Text
+                style={[
+                  styles.folderPickerOptionText,
+                  activeModal?.type === 'moveRoutine' &&
+                    !activeModal.routine.folderId && { color: theme.colors.accent },
+                ]}
+              >
+                No Folder
               </Text>
+              {activeModal?.type === 'moveRoutine' && !activeModal.routine.folderId && (
+                <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+              )}
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+
+            {folders.map((folder) => (
+              <TouchableOpacity
+                key={folder.id}
+                style={styles.folderPickerOption}
+                onPress={() => handleMoveRoutine(folder.id)}
+              >
+                <Ionicons
+                  name="folder-outline"
+                  size={20}
+                  color={
+                    activeModal?.type === 'moveRoutine' &&
+                    activeModal.routine.folderId === folder.id
+                      ? theme.colors.accent
+                      : theme.colors.muted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.folderPickerOptionText,
+                    activeModal?.type === 'moveRoutine' &&
+                      activeModal.routine.folderId === folder.id && { color: theme.colors.accent },
+                  ]}
+                >
+                  {folder.name}
+                </Text>
+                {activeModal?.type === 'moveRoutine' &&
+                  activeModal.routine.folderId === folder.id && (
+                    <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                  )}
+              </TouchableOpacity>
+            ))}
+
+            {folders.length === 0 && (
+              <View style={styles.noFoldersHint}>
+                <Text style={styles.noFoldersHintText}>
+                  No folders yet. Use "New Folder" to create one first.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </BottomSheetModal>
 
       {/* ── Confirm Delete Routine ────────────────────────────────────────── */}
       <Modal
@@ -487,10 +807,7 @@ export const ExerciseListScreen = () => {
                 <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalBtnPrimary,
-                  !renameFolderValue.trim() && { opacity: 0.4 },
-                ]}
+                style={[styles.modalBtnPrimary, !renameFolderValue.trim() && { opacity: 0.4 }]}
                 onPress={handleRenameFolder}
                 disabled={!renameFolderValue.trim()}
               >
@@ -528,14 +845,47 @@ export const ExerciseListScreen = () => {
                 <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalBtnPrimary,
-                  !newFolderName.trim() && { opacity: 0.4 },
-                ]}
+                style={[styles.modalBtnPrimary, !newFolderName.trim() && { opacity: 0.4 }]}
                 onPress={handleCreateFolder}
                 disabled={!newFolderName.trim()}
               >
                 <Text style={styles.modalBtnPrimaryText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── No Routine In Folder ──────────────────────────────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'noRoutineInFolder'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
+            <Text style={styles.modalTitle}>No Routines Yet</Text>
+            <Text style={styles.modalSubtitle}>
+              {activeModal?.type === 'noRoutineInFolder'
+                ? `"${activeModal.folderName}" doesn't have any routines yet. Create one and it will be saved here automatically.`
+                : ''}
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
+                <Text style={styles.modalBtnSecondaryText}>Dismiss</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalBtnPrimary}
+                onPress={() => {
+                  const fid =
+                    activeModal?.type === 'noRoutineInFolder' ? activeModal.folderId : undefined;
+                  closeModal();
+                  nav.navigate('CreateRoutine', { targetFolderId: fid });
+                }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Create Routine</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -550,7 +900,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
   scrollContent: { paddingBottom: theme.spacing.xxl },
 
-  /* ── Header ─────────────────────────────────────────────────────────── */
   topSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
@@ -564,7 +913,6 @@ const styles = StyleSheet.create({
   },
   primaryButton: { marginBottom: theme.spacing.lg },
 
-  /* ── Library Banner ──────────────────────────────────────────────────── */
   libraryBanner: {
     borderRadius: theme.radius.lg,
     overflow: 'hidden',
@@ -589,12 +937,7 @@ const styles = StyleSheet.create({
     right: -20,
     top: -30,
   },
-  libraryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: theme.spacing.md,
-  },
+  libraryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: theme.spacing.md },
   libraryIconWrap: {
     width: 48,
     height: 48,
@@ -612,7 +955,6 @@ const styles = StyleSheet.create({
   },
   librarySub: { fontSize: theme.font.sizeSm, color: theme.colors.muted },
 
-  /* ── Action Cards ────────────────────────────────────────────────────── */
   cardsGrid: { flexDirection: 'row', gap: theme.spacing.md },
   actionCard: {
     flex: 1,
@@ -635,14 +977,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: theme.spacing.sm,
   },
-  cardTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
+  cardTitle: { fontSize: theme.font.sizeMd, fontWeight: theme.font.weightBold, color: theme.colors.text },
   cardSub: { fontSize: 11, color: theme.colors.muted },
 
-  /* ── Section Headers ─────────────────────────────────────────────────── */
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -657,30 +994,53 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     letterSpacing: 1.2,
   },
-  newFolderHeaderBtn: {
+  newFolderHeaderBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  newFolderHeaderText: { fontSize: 12, color: theme.colors.accent, fontWeight: theme.font.weightBold },
+
+  dragHintLabel: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    fontStyle: 'italic',
+  },
+
+  noRoutinesBanner: { paddingHorizontal: theme.spacing.lg, marginTop: theme.spacing.xl },
+  noRoutinesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.sm,
   },
-  newFolderHeaderText: {
-    fontSize: 12,
-    color: theme.colors.accent,
+  noRoutinesCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  noRoutinesTitle: {
+    fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
+  noRoutinesSub: { fontSize: theme.font.sizeSm, color: theme.colors.muted, textAlign: 'center', lineHeight: 20 },
 
-  /* ── My Routines ─────────────────────────────────────────────────────── */
-  routinesContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
+  routinesContainer: { paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
 
-  /* Folder section */
   folderSection: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
     overflow: 'hidden',
+  },
+  folderSectionHovered: {
+    borderColor: theme.colors.accent,
+    borderWidth: 2,
+    backgroundColor: 'rgba(198, 255, 61, 0.04)',
   },
   folderHeader: {
     flexDirection: 'row',
@@ -689,58 +1049,91 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
-  folderName: {
-    flex: 1,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
+  folderName: { flex: 1, fontSize: theme.font.sizeSm, fontWeight: theme.font.weightBold, color: theme.colors.text },
+  folderCount: { fontSize: 11, color: theme.colors.muted, marginRight: theme.spacing.sm },
+  folderRoutines: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+
+  dropHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(198, 255, 61, 0.08)',
   },
-  folderCount: {
-    fontSize: 11,
-    color: theme.colors.muted,
-    marginRight: theme.spacing.sm,
+  dropHintText: { fontSize: 11, color: theme.colors.accent, fontWeight: theme.font.weightBold },
+
+  emptyFolderContainer: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  folderRoutines: {
+  emptyFolderText: { fontSize: 12, color: theme.colors.muted },
+  emptyFolderAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  emptyFolderActionText: { fontSize: 12, color: theme.colors.accent, fontWeight: theme.font.weightBold },
+
+  addToFolderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
-  emptyFolderText: {
-    fontSize: 12,
-    color: theme.colors.muted,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-  },
+  addToFolderBtnText: { fontSize: 11, color: theme.colors.muted },
 
-  /* Un-foldered group */
-  unfolderedGroup: { gap: theme.spacing.sm },
+  unfolderedGroup: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.xs,
+    minHeight: 60,
+  },
+  unfolderedGroupHovered: {
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    backgroundColor: 'rgba(198, 255, 61, 0.04)',
+    padding: theme.spacing.sm,
+  },
+  unfolderedLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.sm,
+    marginBottom: 2,
+  },
   unfolderedLabel: {
     fontSize: 10,
     color: theme.colors.muted,
     fontWeight: theme.font.weightBold,
     letterSpacing: 1,
-    marginTop: theme.spacing.sm,
-    marginBottom: 2,
   },
+  dropHintInline: { fontSize: 10, color: theme.colors.accent, fontWeight: theme.font.weightBold },
 
-  /* Routine card */
   routineCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  routineCardLeft: {
-    flex: 1,
-    flexDirection: 'row',
+  routineCardDragging: {
+    opacity: 0.45,
+    borderColor: theme.colors.accent,
+    borderStyle: 'dashed',
+  },
+  dragHandle: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: theme.spacing.md,
   },
+  routineCardLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   routineCardIcon: {
     width: 38,
     height: 38,
@@ -758,11 +1151,31 @@ const styles = StyleSheet.create({
   },
   routineCardMeta: { fontSize: 11, color: theme.colors.muted },
 
-  /* ── Quick Tips ──────────────────────────────────────────────────────── */
-  tipsContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.sm,
+  dragGhost: {
+    position: 'absolute',
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.radius.md,
+    maxWidth: 220,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 8,
   },
+  dragGhostText: {
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.accentText,
+    flex: 1,
+  },
+
+  tipsContainer: { paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -783,15 +1196,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tipBody: { flex: 1 },
-  tipTitle: {
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    marginBottom: 3,
-  },
+  tipTitle: { fontSize: theme.font.sizeSm, fontWeight: theme.font.weightBold, color: theme.colors.text, marginBottom: 3 },
   tipSub: { fontSize: 12, color: theme.colors.muted, lineHeight: 18 },
 
-  /* ── Shared Modal Shell ──────────────────────────────────────────────── */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.75)',
@@ -809,24 +1216,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  modalTitle: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    width: '100%',
-  },
+  modalTitle: { fontSize: theme.font.sizeLg, fontWeight: theme.font.weightBold, color: theme.colors.text, textAlign: 'center' },
+  modalSubtitle: { fontSize: theme.font.sizeSm, color: theme.colors.muted, textAlign: 'center', lineHeight: 20 },
+  modalActions: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm, width: '100%' },
   modalBtnSecondary: {
     flex: 1,
     paddingVertical: theme.spacing.md,
@@ -836,11 +1228,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  modalBtnSecondaryText: {
-    color: theme.colors.text,
-    fontWeight: theme.font.weightBold,
-    fontSize: theme.font.sizeMd,
-  },
+  modalBtnSecondaryText: { color: theme.colors.text, fontWeight: theme.font.weightBold, fontSize: theme.font.sizeMd },
   modalBtnPrimary: {
     flex: 1,
     paddingVertical: theme.spacing.md,
@@ -848,13 +1236,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.colors.accent,
   },
-  modalBtnPrimaryText: {
-    color: theme.colors.accentText,
-    fontWeight: theme.font.weightBold,
-    fontSize: theme.font.sizeMd,
-  },
+  modalBtnPrimaryText: { color: theme.colors.accentText, fontWeight: theme.font.weightBold, fontSize: theme.font.sizeMd },
 
-  /* ── Folder name input (reuse in both modals) ────────────────────────── */
   folderNameInput: {
     width: '100%',
     backgroundColor: theme.colors.bg,
@@ -867,12 +1250,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
 
-  /* ── Bottom Sheet ────────────────────────────────────────────────────── */
-  sheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheetContent: {
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: theme.radius.xl,
@@ -887,6 +1265,12 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     color: theme.colors.text,
     paddingHorizontal: theme.spacing.lg,
+    marginBottom: 4,
+  },
+  sheetSubtitle: {
+    fontSize: theme.font.sizeSm,
+    color: theme.colors.muted,
+    paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
   menuItem: {
@@ -898,9 +1282,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  menuItemText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
+  menuItemText: { fontSize: theme.font.sizeMd, fontWeight: theme.font.weightMedium, color: theme.colors.text },
+
+  folderPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
+  folderPickerOptionText: { flex: 1, fontSize: theme.font.sizeMd, color: theme.colors.text },
+  noFoldersHint: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
+  noFoldersHintText: { fontSize: theme.font.sizeSm, color: theme.colors.muted, textAlign: 'center', lineHeight: 20 },
 });

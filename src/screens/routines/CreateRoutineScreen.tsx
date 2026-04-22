@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  Animated,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,6 +52,62 @@ type ActiveModal =
   | { type: 'folderPicker' }
   | { type: 'createFolder' };
 
+// ── BottomSheetModal: wrapper that animates modal content up while overlay appears instantly ──
+const BottomSheetModal = ({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) => {
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 4,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      {/* Overlay appears instantly — no slide animation on the background */}
+      <TouchableOpacity
+        style={styles.sheetOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        {/* Only the sheet content slides up */}
+        <Animated.View
+          style={{ transform: [{ translateY: slideAnim }] }}
+          // Prevent overlay press from firing when tapping inside the sheet
+          onStartShouldSetResponder={() => true}
+        >
+          {children}
+        </Animated.View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const {
     routines,
@@ -68,19 +125,37 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     ? routines.find((r) => r.id === params.routineId)
     : undefined;
 
+  // If the user tapped "Create a Routine" inside a specific folder, we get
+  // targetFolderId. In that case the routine is pre-assigned to that folder
+  // and the folder picker row is hidden entirely.
+  const targetFolderId = params?.targetFolderId;
+  const isLockedToFolder = !!targetFolderId && !editing;
+
   const [title, setTitle]             = useState(editing?.name ?? '');
   const [exercises, setExercises]     = useState<RoutineExercise[]>(editing?.exercises ?? []);
   const [exerciseStates, setExerciseStates] = useState<Map<string, ExerciseState>>(new Map());
   const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(
-    editing?.folderId
+    editing?.folderId ?? targetFolderId
   );
   const [newFolderName, setNewFolderName] = useState('');
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
 
-  // Track whether the user has made any changes (to decide if cancel needs confirmation)
+  // ── Fix #3: Track dirty state properly — start as false, only mark dirty on actual user changes ──
   const [isDirty, setIsDirty] = useState(false);
 
+  // Snapshot of original values so we can detect real changes
+  const originalTitle = useRef(editing?.name ?? '');
+  const originalExerciseCount = useRef(editing?.exercises?.length ?? 0);
+
   const closeModal = () => setActiveModal(null);
+
+  // ── Fix #1: Clear temp routine on initial mount so back-navigation doesn't restore stale exercises ──
+  useEffect(() => {
+    if (!editing) {
+      // Only clear temp routine when we first enter a NEW routine screen
+      setCurrentRoutine(null);
+    }
+  }, []);
 
   // ── Sync exercises from context on focus ──────────────────────────────────
   useFocusEffect(
@@ -100,7 +175,10 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
       if (changed) {
         setExercises(sourcedExercises);
-        setIsDirty(true);
+        // ── Fix #3: Adding exercises IS a real change, so mark dirty ──
+        if (sourcedExercises.length !== originalExerciseCount.current) {
+          setIsDirty(true);
+        }
 
         const newStates = new Map<string, ExerciseState>();
         sourcedExercises.forEach((ex) => {
@@ -168,7 +246,6 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
   const handleSavePress = () => {
     if (!title.trim()) {
-      // Inline validation — no need for a modal here
       setActiveModal(null);
       setTimeout(() => alert('Please enter a routine title before saving.'), 100);
       return;
@@ -180,8 +257,13 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     setActiveModal({ type: 'confirmSave' });
   };
 
+  // ── Fix #3: Only show discard confirmation when user actually made changes ──
   const handleCancelPress = () => {
-    if (isDirty || title.trim() || exercises.length > 0) {
+    const titleChanged = title.trim() !== originalTitle.current.trim();
+    const exercisesChanged = exercises.length !== originalExerciseCount.current;
+    const hasRealChanges = isDirty || titleChanged || exercisesChanged;
+
+    if (hasRealChanges) {
       setActiveModal({ type: 'confirmCancel' });
     } else {
       navigation.goBack();
@@ -294,33 +376,48 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         <TextInput
           placeholder="Routine title"
           value={title}
-          onChangeText={(t) => { setTitle(t); setIsDirty(true); }}
+          onChangeText={(t) => {
+            setTitle(t);
+            // Only mark dirty if the title actually differs from original
+            if (t.trim() !== originalTitle.current.trim()) setIsDirty(true);
+          }}
           style={styles.titleInput}
           placeholderTextColor={theme.colors.muted}
         />
       </View>
 
-      {/* ── Folder Picker Row ──────────────────────────────────────────── */}
-      <TouchableOpacity
-        style={styles.folderRow}
-        onPress={() => setActiveModal({ type: 'folderPicker' })}
-        activeOpacity={0.75}
-      >
-        <Ionicons
-          name="folder-open-outline"
-          size={18}
-          color={selectedFolder ? theme.colors.accent : theme.colors.muted}
-        />
-        <Text
-          style={[
-            styles.folderRowText,
-            selectedFolder && { color: theme.colors.accent },
-          ]}
+      {/* ── Folder Picker Row — hidden when created from inside a folder ── */}
+      {isLockedToFolder ? (
+        // Read-only label showing which folder this will be saved to
+        <View style={styles.folderRow}>
+          <Ionicons name="folder-open-outline" size={18} color={theme.colors.accent} />
+          <Text style={[styles.folderRowText, { color: theme.colors.accent }]}>
+            {selectedFolder ? selectedFolder.name : 'Assigned folder'}
+          </Text>
+          <Ionicons name="lock-closed-outline" size={14} color={theme.colors.muted} />
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.folderRow}
+          onPress={() => setActiveModal({ type: 'folderPicker' })}
+          activeOpacity={0.75}
         >
-          {selectedFolder ? selectedFolder.name : 'No folder — tap to assign'}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color={theme.colors.muted} />
-      </TouchableOpacity>
+          <Ionicons
+            name="folder-open-outline"
+            size={18}
+            color={selectedFolder ? theme.colors.accent : theme.colors.muted}
+          />
+          <Text
+            style={[
+              styles.folderRowText,
+              selectedFolder && { color: theme.colors.accent },
+            ]}
+          >
+            {selectedFolder ? selectedFolder.name : 'No folder — tap to assign'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.muted} />
+        </TouchableOpacity>
+      )}
 
       {/* ── Exercises List ─────────────────────────────────────────────── */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -347,12 +444,13 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
               return (
                 <View key={exercise.id} style={styles.exerciseCard}>
-                  {/* Exercise header */}
+                  {/* ── Fix #5: Exercise header — title is NOT touchable, only the 3-dot button ── */}
                   <View style={styles.exerciseHeader}>
                     <View style={styles.exerciseHeaderContent}>
                       <View style={styles.exerciseIcon}>
                         <Ionicons name="barbell" size={32} color={theme.colors.accent} />
                       </View>
+                      {/* Title is plain View, not TouchableOpacity */}
                       <Text style={styles.exerciseTitle}>{exercise.name}</Text>
                     </View>
                     <TouchableOpacity
@@ -469,7 +567,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
           MODALS
       ════════════════════════════════════════════════════════════════ */}
 
-      {/* ── Confirm Save ────────────────────────────────────────────────── */}
+      {/* ── Fix #4: Confirm Save — improved description text ────────────── */}
       <Modal
         visible={activeModal?.type === 'confirmSave'}
         transparent
@@ -482,9 +580,11 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
               <Ionicons name="checkmark-circle-outline" size={40} color={theme.colors.accent} />
             </View>
             <Text style={styles.modalTitle}>Save Routine?</Text>
+            {/* Fix #4: Clearer description */}
             <Text style={styles.modalSubtitle}>
-              "{title.trim()}" will be saved
-              {selectedFolder ? ` to "${selectedFolder.name}"` : ' without a folder'}.
+              {editing
+                ? `Your changes to "${title.trim()}" will be saved${selectedFolder ? ` in "${selectedFolder.name}"` : ''}.`
+                : `"${title.trim()}" will be added to your routines${selectedFolder ? ` under "${selectedFolder.name}"` : ''}.`}
             </Text>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
@@ -498,7 +598,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         </View>
       </Modal>
 
-      {/* ── Confirm Cancel / Discard ─────────────────────────────────────── */}
+      {/* ── Fix #3: Confirm Cancel / Discard — only shown when isDirty ────── */}
       <Modal
         visible={activeModal?.type === 'confirmCancel'}
         transparent
@@ -520,7 +620,12 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtnPrimary, { backgroundColor: theme.colors.danger }]}
-                onPress={() => { closeModal(); navigation.goBack(); }}
+                onPress={() => {
+                  closeModal();
+                  // Fix #1: Clear any temp routine state so it won't be restored on re-entry
+                  if (!editing) setCurrentRoutine(null);
+                  navigation.goBack();
+                }}
               >
                 <Text style={styles.modalBtnPrimaryText}>Discard</Text>
               </TouchableOpacity>
@@ -567,89 +672,81 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         </View>
       </Modal>
 
-      {/* ── Folder Picker ────────────────────────────────────────────────── */}
-      <Modal
+      {/* ── Fix #6: Folder Picker — overlay appears instantly, sheet slides up ── */}
+      <BottomSheetModal
         visible={activeModal?.type === 'folderPicker'}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModal}
+        onClose={closeModal}
       >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={closeModal}
-        >
-          <View style={styles.sheetContent}>
-            <Text style={styles.sheetTitle}>Assign to Folder</Text>
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>Assign to Folder</Text>
 
-            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-              {/* No folder option */}
+          <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+            {/* No folder option */}
+            <TouchableOpacity
+              style={styles.folderOption}
+              onPress={() => { setSelectedFolderId(undefined); closeModal(); }}
+            >
+              <Ionicons
+                name="close-circle-outline"
+                size={20}
+                color={!selectedFolderId ? theme.colors.accent : theme.colors.muted}
+              />
+              <Text
+                style={[
+                  styles.folderOptionText,
+                  !selectedFolderId && { color: theme.colors.accent },
+                ]}
+              >
+                No Folder
+              </Text>
+              {!selectedFolderId && (
+                <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+              )}
+            </TouchableOpacity>
+
+            {folders.map((folder) => (
               <TouchableOpacity
+                key={folder.id}
                 style={styles.folderOption}
-                onPress={() => { setSelectedFolderId(undefined); closeModal(); }}
+                onPress={() => { setSelectedFolderId(folder.id); closeModal(); }}
               >
                 <Ionicons
-                  name="close-circle-outline"
+                  name="folder-outline"
                   size={20}
-                  color={!selectedFolderId ? theme.colors.accent : theme.colors.muted}
+                  color={
+                    selectedFolderId === folder.id
+                      ? theme.colors.accent
+                      : theme.colors.muted
+                  }
                 />
                 <Text
                   style={[
                     styles.folderOptionText,
-                    !selectedFolderId && { color: theme.colors.accent },
+                    selectedFolderId === folder.id && { color: theme.colors.accent },
                   ]}
                 >
-                  No Folder
+                  {folder.name}
                 </Text>
-                {!selectedFolderId && (
+                {selectedFolderId === folder.id && (
                   <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
                 )}
               </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-              {folders.map((folder) => (
-                <TouchableOpacity
-                  key={folder.id}
-                  style={styles.folderOption}
-                  onPress={() => { setSelectedFolderId(folder.id); closeModal(); }}
-                >
-                  <Ionicons
-                    name="folder-outline"
-                    size={20}
-                    color={
-                      selectedFolderId === folder.id
-                        ? theme.colors.accent
-                        : theme.colors.muted
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.folderOptionText,
-                      selectedFolderId === folder.id && { color: theme.colors.accent },
-                    ]}
-                  >
-                    {folder.name}
-                  </Text>
-                  {selectedFolderId === folder.id && (
-                    <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Create new folder */}
-            <TouchableOpacity
-              style={styles.newFolderBtn}
-              onPress={() => {
-                closeModal();
-                setTimeout(() => setActiveModal({ type: 'createFolder' }), 300);
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={18} color={theme.colors.accent} />
-              <Text style={styles.newFolderBtnText}>Create New Folder</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+          {/* Create new folder */}
+          <TouchableOpacity
+            style={styles.newFolderBtn}
+            onPress={() => {
+              closeModal();
+              setTimeout(() => setActiveModal({ type: 'createFolder' }), 300);
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={theme.colors.accent} />
+            <Text style={styles.newFolderBtnText}>Create New Folder</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetModal>
 
       {/* ── Create Folder ────────────────────────────────────────────────── */}
       <Modal
@@ -732,55 +829,47 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         </View>
       </Modal>
 
-      {/* ── Exercise Menu (bottom sheet) ──────────────────────────────────── */}
-      <Modal
+      {/* ── Fix #6: Exercise Menu (bottom sheet) — overlay instant, sheet animates ── */}
+      <BottomSheetModal
         visible={activeModal?.type === 'exerciseMenu'}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModal}
+        onClose={closeModal}
       >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={closeModal}
-        >
-          <View style={styles.sheetContent}>
-            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
-              <Ionicons name="swap-vertical" size={20} color={theme.colors.accent} />
-              <Text style={styles.menuItemText}>Reorder Exercises</Text>
-            </TouchableOpacity>
+        <View style={styles.sheetContent}>
+          <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
+            <Ionicons name="swap-vertical" size={20} color={theme.colors.accent} />
+            <Text style={styles.menuItemText}>Reorder Exercises</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
-              <Ionicons name="sync" size={20} color={theme.colors.accent} />
-              <Text style={styles.menuItemText}>Replace Exercise</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
+            <Ionicons name="sync" size={20} color={theme.colors.accent} />
+            <Text style={styles.menuItemText}>Replace Exercise</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
-              <Ionicons name="add-circle" size={20} color={theme.colors.accent} />
-              <Text style={styles.menuItemText}>Add To Superset</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={closeModal}>
+            <Ionicons name="add-circle" size={20} color={theme.colors.accent} />
+            <Text style={styles.menuItemText}>Add To Superset</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.menuItem, styles.menuItemDanger]}
-              onPress={() => {
-                const id =
-                  activeModal?.type === 'exerciseMenu' ? activeModal.exerciseId : null;
-                closeModal();
-                if (id)
-                  setTimeout(
-                    () => setActiveModal({ type: 'confirmRemoveExercise', exerciseId: id }),
-                    300
-                  );
-              }}
-            >
-              <Ionicons name="trash" size={20} color={theme.colors.danger} />
-              <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>
-                Remove Exercise
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+          <TouchableOpacity
+            style={[styles.menuItem, styles.menuItemDanger]}
+            onPress={() => {
+              const id =
+                activeModal?.type === 'exerciseMenu' ? activeModal.exerciseId : null;
+              closeModal();
+              if (id)
+                setTimeout(
+                  () => setActiveModal({ type: 'confirmRemoveExercise', exerciseId: id }),
+                  300
+                );
+            }}
+          >
+            <Ionicons name="trash" size={20} color={theme.colors.danger} />
+            <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>
+              Remove Exercise
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetModal>
     </Screen>
   );
 };
