@@ -29,8 +29,20 @@ const REST_TIMER_OPTIONS = [
 ];
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
-  const { exercises, setExercises, clearWorkout } = useWorkout();
+  const { exercises, setExercises, addExercises, clearWorkout } = useWorkout();
   const [startTime] = useState(Date.now());
+
+  // Seed exercises from route param (e.g. when launched from ExploreRoutines).
+  // ExploreRoutinesScreen already calls addExercises() + clearWorkout() before
+  // navigating here, so this effect only fires when the caller passes exercises
+  // directly through the param instead (legacy path kept for compatibility).
+  useEffect(() => {
+    const toAdd = route.params?.exercisesToAdd;
+    if (toAdd && toAdd.length > 0) {
+      addExercises(toAdd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [elapsed, setElapsed] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
   const [totalSets, setTotalSets] = useState(0);
@@ -859,4 +871,3 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
 });
-

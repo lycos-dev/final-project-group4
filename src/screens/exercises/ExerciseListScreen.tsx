@@ -25,14 +25,14 @@ const TIPS: {
 }[] = [
   {
     id: '1',
-    icon: 'barbell-outline',
-    title: 'Build your library',
-    sub: 'Add custom exercises to your personal library for quick access during workouts.',
+    icon: 'compass-outline',
+    title: 'Explore preset routines',
+    sub: 'Browse curated workout plans built for every level — from beginner full-body to advanced splits.',
   },
   {
     id: '2',
     icon: 'repeat-outline',
-    title: 'Create routines',
+    title: 'Create your own routines',
     sub: 'Group exercises into routines to stay consistent and track your progress.',
   },
   {
@@ -118,20 +118,21 @@ export const ExerciseListScreen = () => {
               <Text style={styles.cardSub}>Build a custom plan</Text>
             </TouchableOpacity>
 
+            {/* ── Explore card (replaces "Add Exercise") ──────────────── */}
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => nav.navigate('ExerciseForm', {})}
+              onPress={() => nav.navigate('ExploreRoutines')}
               activeOpacity={0.7}
             >
               <View style={styles.actionCardIcon}>
                 <Ionicons
-                  name="add-circle-outline"
+                  name="compass-outline"
                   size={26}
                   color={theme.colors.accent}
                 />
               </View>
-              <Text style={styles.cardTitle}>Add Exercise</Text>
-              <Text style={styles.cardSub}>Create a custom move</Text>
+              <Text style={styles.cardTitle}>Explore</Text>
+              <Text style={styles.cardSub}>Browse preset plans</Text>
             </TouchableOpacity>
           </View>
         </View>

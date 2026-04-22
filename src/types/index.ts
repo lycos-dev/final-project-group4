@@ -46,3 +46,16 @@ export interface Routine {
   createdAt: number;
   exercises: RoutineExercise[];
 }
+
+/** Difficulty level for a preset routine. */
+export type RoutineLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+
+/** A read-only curated routine shown on the Explore screen. */
+export interface PresetRoutine {
+  id: string;
+  name: string;
+  level: RoutineLevel;
+  /** Broad category label shown as metadata (e.g. "Push", "Full Body"). */
+  category: string;
+  exercises: Exercise[];
+}
