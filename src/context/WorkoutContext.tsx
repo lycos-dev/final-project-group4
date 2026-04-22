@@ -35,17 +35,34 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addExercises = (exercisesToAdd: Exercise[]) => {
-    const newExercises = exercisesToAdd.map((ex) => ({
-      ...ex,
-      notes: '',
-      restTimerDuration: 0,
-      sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
-        id: `${ex.id}-set-${i}-${Date.now()}-${Math.random()}`,
-        reps: String(ex.defaultReps),
-        weight: '0',
-        completed: false,
-      })),
-    }));
+    const newExercises = exercisesToAdd.map((ex: any) => {
+      // Generate a unique ID for each exercise instance (so duplicate exercises have different IDs)
+      const uniqueInstanceId = `${ex.id}-${Date.now()}-${Math.random()}`;
+      
+      // Check if this is a routine exercise with saved sets and rest timer
+      const hasSavedRoutineData = ex.routineSets && ex.routineSets.length > 0;
+      const routineRestTimer = ex.restTimerDuration ?? 0;
+      
+      return {
+        ...ex,
+        id: uniqueInstanceId, // Override the exercise ID with a unique instance ID
+        notes: '',
+        restTimerDuration: routineRestTimer,
+        sets: hasSavedRoutineData
+          ? // Use saved routine sets, but add completed flag
+            ex.routineSets.map((s: any) => ({
+              ...s,
+              completed: false,
+            }))
+          : // Create default sets
+            Array.from({ length: ex.defaultSets }, (_, i) => ({
+              id: `${uniqueInstanceId}-set-${i}`,
+              reps: '',
+              weight: '',
+              completed: false,
+            })),
+      };
+    });
     
     setExercisesState((prev) => [...prev, ...newExercises]);
   };

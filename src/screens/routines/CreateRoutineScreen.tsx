@@ -63,24 +63,27 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
       // Update if exercises changed
       if (
         sourcedExercises.length !== exercises.length ||
-        sourcedExercises.some((ex) => !exercises.some((sel) => sel.id === ex.id))
+        sourcedExercises.some((ex) => !exercises.some((sel) => (sel.instanceId || sel.id) === (ex.instanceId || ex.id)))
       ) {
         setExercises(sourcedExercises);
 
         // Update exercise states
         const newStates = new Map<string, ExerciseState>();
         sourcedExercises.forEach((ex) => {
-          if (exerciseStates.has(ex.id)) {
-            newStates.set(ex.id, exerciseStates.get(ex.id)!);
+          const key = ex.instanceId || ex.id;
+          if (exerciseStates.has(key)) {
+            newStates.set(key, exerciseStates.get(key)!);
           } else {
-            newStates.set(ex.id, {
+            newStates.set(key, {
               notes: ex.notes ?? '',
-              restTimerDuration: 0,
-              sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
-                id: `${ex.id}-set-${i}`,
-                reps: String(ex.defaultReps),
-                weight: '0',
-              })),
+              restTimerDuration: ex.restTimerDuration ?? 0,
+              sets: (ex.routineSets && ex.routineSets.length > 0) 
+                ? ex.routineSets 
+                : Array.from({ length: ex.defaultSets }, (_, i) => ({
+                    id: `${key}-set-${i}`,
+                    reps: '',
+                    weight: '',
+                  })),
             });
           }
         });
@@ -113,10 +116,16 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
       id: editing?.id ?? `routine-${Date.now()}`,
       name: title.trim(),
       createdAt: editing?.createdAt ?? Date.now(),
-      exercises: exercises.map((ex) => ({
-        ...ex,
-        notes: exerciseStates.get(ex.id)?.notes ?? '',
-      })),
+      exercises: exercises.map((ex) => {
+        const key = ex.instanceId || ex.id;
+        const state = exerciseStates.get(key);
+        return {
+          ...ex,
+          notes: state?.notes ?? '',
+          restTimerDuration: state?.restTimerDuration ?? 0,
+          routineSets: state?.sets ?? [],
+        };
+      }),
     };
 
     if (editing) {
@@ -133,44 +142,44 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     navigation.goBack();
   };
 
-  const removeExercise = (exerciseId: string) => {
-    setExercises((prev) => prev.filter((e) => e.id !== exerciseId));
+  const removeExercise = (exerciseInstanceId: string) => {
+    setExercises((prev) => prev.filter((e) => (e.instanceId || e.id) !== exerciseInstanceId));
     setExerciseStates((prev) => {
       const newMap = new Map(prev);
-      newMap.delete(exerciseId);
+      newMap.delete(exerciseInstanceId);
       return newMap;
     });
   };
 
-  const updateExerciseNote = (exerciseId: string, note: string) => {
+  const updateExerciseNote = (exerciseInstanceId: string, note: string) => {
     setExerciseStates((prev) => {
       const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
+      const state = newMap.get(exerciseInstanceId);
       if (state) {
-        newMap.set(exerciseId, { ...state, notes: note });
+        newMap.set(exerciseInstanceId, { ...state, notes: note });
       }
       return newMap;
     });
   };
 
-  const updateRestTimer = (exerciseId: string, duration: number) => {
+  const updateRestTimer = (exerciseInstanceId: string, duration: number) => {
     setExerciseStates((prev) => {
       const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
+      const state = newMap.get(exerciseInstanceId);
       if (state) {
-        newMap.set(exerciseId, { ...state, restTimerDuration: duration });
+        newMap.set(exerciseInstanceId, { ...state, restTimerDuration: duration });
       }
       return newMap;
     });
     setShowRestTimerModal(null);
   };
 
-  const updateSet = (exerciseId: string, setId: string, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (exerciseInstanceId: string, setId: string, field: 'reps' | 'weight', value: string) => {
     setExerciseStates((prev) => {
       const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
+      const state = newMap.get(exerciseInstanceId);
       if (state) {
-        newMap.set(exerciseId, {
+        newMap.set(exerciseInstanceId, {
           ...state,
           sets: state.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)),
         });
@@ -179,20 +188,20 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     });
   };
 
-  const addSet = (exerciseId: string) => {
+  const addSet = (exerciseInstanceId: string) => {
     setExerciseStates((prev) => {
       const newMap = new Map(prev);
-      const state = newMap.get(exerciseId);
+      const state = newMap.get(exerciseInstanceId);
       if (state) {
-        const exercise = exercises.find((ex) => ex.id === exerciseId);
-        newMap.set(exerciseId, {
+        const exercise = exercises.find((ex) => (ex.instanceId || ex.id) === exerciseInstanceId);
+        newMap.set(exerciseInstanceId, {
           ...state,
           sets: [
             ...state.sets,
             {
-              id: `${exerciseId}-set-${state.sets.length}`,
-              reps: String(exercise?.defaultReps ?? 10),
-              weight: '0',
+              id: `${exerciseInstanceId}-set-${state.sets.length}`,
+              reps: '',
+              weight: '',
             },
           ],
         });
@@ -235,14 +244,15 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         ) : (
           <View style={styles.exercisesList}>
             {exercises.map((exercise) => {
-              const state = exerciseStates.get(exercise.id) || {
+              const key = exercise.instanceId || exercise.id;
+              const state = exerciseStates.get(key) || {
                 notes: '',
                 restTimerDuration: 0,
                 sets: [],
               };
 
               return (
-                <View key={exercise.id} style={styles.exerciseCard}>
+                <View key={key} style={styles.exerciseCard}>
                   {/* Exercise Header */}
                   <View style={styles.exerciseHeader}>
                     <View style={styles.exerciseHeaderContent}>
@@ -253,7 +263,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                     </View>
                     <TouchableOpacity
                       style={styles.menuButton}
-                      onPress={() => setShowExerciseMenu(exercise.id)}
+                      onPress={() => setShowExerciseMenu(key)}
                     >
                       <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.muted} />
                     </TouchableOpacity>
@@ -263,7 +273,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   <TextInput
                     placeholder="Add routine notes here"
                     value={state.notes}
-                    onChangeText={(text) => updateExerciseNote(exercise.id, text)}
+                    onChangeText={(text) => updateExerciseNote(key, text)}
                     style={styles.notesInput}
                     placeholderTextColor={theme.colors.muted}
                   />
@@ -271,7 +281,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   {/* Rest Timer */}
                   <TouchableOpacity
                     style={styles.restTimerButton}
-                    onPress={() => setShowRestTimerModal(exercise.id)}
+                    onPress={() => setShowRestTimerModal(key)}
                   >
                     <Ionicons
                       name="timer"
@@ -304,14 +314,16 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                         <TextInput
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.weight}
-                          onChangeText={(val) => updateSet(exercise.id, set.id, 'weight', val)}
+                          onChangeText={(val) => updateSet(key, set.id, 'weight', val)}
+                          placeholder="0"
                           keyboardType="decimal-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
                         <TextInput
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.reps}
-                          onChangeText={(val) => updateSet(exercise.id, set.id, 'reps', val)}
+                          onChangeText={(val) => updateSet(key, set.id, 'reps', val)}
+                          placeholder={String(exercises.find(e => (e.instanceId || e.id) === key)?.defaultReps || 0)}
                           keyboardType="number-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
@@ -322,7 +334,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   {/* Add Set Button */}
                   <TouchableOpacity
                     style={styles.addSetButton}
-                    onPress={() => addSet(exercise.id)}
+                    onPress={() => addSet(key)}
                   >
                     <Text style={styles.addSetButtonText}>+ Add Set</Text>
                   </TouchableOpacity>
@@ -348,9 +360,9 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Rest Timer</Text>
-            {showRestTimerModal && exercises.find((ex) => ex.id === showRestTimerModal)?.name && (
+            {showRestTimerModal && exercises.find((ex) => (ex.instanceId || ex.id) === showRestTimerModal)?.name && (
               <Text style={styles.modalSubtitle}>
-                {exercises.find((ex) => ex.id === showRestTimerModal)?.name}
+                {exercises.find((ex) => (ex.instanceId || ex.id) === showRestTimerModal)?.name}
               </Text>
             )}
 

@@ -10,6 +10,12 @@ import { theme } from '../../theme/theme';
 import { Exercise } from '../../types';
 import { useWorkout, LogExercise, WorkoutSet } from '../../context/WorkoutContext';
 
+interface RoutineExercise extends Exercise {
+  notes?: string;
+  customSets?: number;
+  customReps?: number;
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, 'LogWorkout'>;
 
 interface ActiveRestTimer {
@@ -29,7 +35,7 @@ const REST_TIMER_OPTIONS = [
 ];
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
-  const { exercises, setExercises, clearWorkout } = useWorkout();
+  const { exercises, setExercises, clearWorkout, addExercises } = useWorkout();
   const [startTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
@@ -37,6 +43,14 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   const [showRestTimerModal, setShowRestTimerModal] = useState<string | null>(null);
   const [activeRestTimer, setActiveRestTimer] = useState<ActiveRestTimer | null>(null);
   const [showExerciseMenu, setShowExerciseMenu] = useState<string | null>(null);
+
+  // Initialize exercises from route params (e.g., when starting a routine)
+  useEffect(() => {
+    const routeExercises = route.params?.exercisesToAdd as RoutineExercise[] | undefined;
+    if (routeExercises && routeExercises.length > 0 && exercises.length === 0) {
+      addExercises(routeExercises);
+    }
+  }, [route.params?.exercisesToAdd]);
 
   // Timer effect
   useEffect(() => {
@@ -144,8 +158,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 ...ex.sets,
                 {
                   id: `${exerciseId}-set-${ex.sets.length}`,
-                  reps: String(ex.defaultReps),
-                  weight: '0',
+                  reps: '',
+                  weight: '',
                   completed: false,
                 },
               ],
@@ -297,6 +311,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         style={[styles.setGridCell, styles.setInput]}
                         value={set.weight}
                         onChangeText={(val) => updateSet(exercise.id, set.id, 'weight', val)}
+                        placeholder="0"
                         keyboardType="decimal-pad"
                         placeholderTextColor={theme.colors.muted}
                       />
@@ -304,6 +319,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         style={[styles.setGridCell, styles.setInput]}
                         value={set.reps}
                         onChangeText={(val) => updateSet(exercise.id, set.id, 'reps', val)}
+                        placeholder={String(exercise.defaultReps)}
                         keyboardType="number-pad"
                         placeholderTextColor={theme.colors.muted}
                       />

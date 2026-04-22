@@ -32,9 +32,16 @@ export interface Settings {
 }
 
 export interface RoutineExercise extends Exercise {
+  instanceId?: string; // Unique ID for this exercise instance in the routine (for handling duplicates)
   notes?: string;
   customSets?: number;
   customReps?: number;
+  restTimerDuration?: number;
+  routineSets?: Array<{
+    id: string;
+    reps: string;
+    weight: string;
+  }>;
 }
 
 export interface Routine {
