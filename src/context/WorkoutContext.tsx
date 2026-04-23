@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { Exercise } from '../types';
 
 export type SetType = 'normal' | 'warmup' | 'failure';
@@ -35,15 +35,6 @@ interface WorkoutContextType {
   getCompletedWorkoutsByDate: (date: Date) => CompletedWorkout[];
   getCompletedDatesThisMonth: () => number[];
   getRecentWorkout: () => CompletedWorkout | null;
-  // Timer
-  startTime: number | null;
-  setStartTime: (t: number) => void;
-  isPaused: boolean;
-  togglePause: () => void;
-  ensureStarted: () => void;
-  getElapsedSeconds: () => number;
-  setMinimized: (v: boolean) => void;
-  isMinimized: boolean;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -52,68 +43,40 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [exercises, setExercisesState] = useState<LogExercise[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
 
-  // ── Timer state ──────────────────────────────────────────────────────
-  const [startTime, setStartTimeState] = useState<number | null>(null);
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const [pausedAccumMs, setPausedAccumMs] = useState(0);
-  const [isMinimized, setMinimized] = useState(false);
-
-  const isPaused = pausedAt !== null;
-
-  const setStartTime = (t: number) => setStartTimeState(t);
-
-  const ensureStarted = useCallback(() => {
-    if (startTime === null) {
-      setStartTimeState(Date.now());
-      setPausedAt(null);
-      setPausedAccumMs(0);
-    }
-  }, [startTime]);
-
-  const togglePause = useCallback(() => {
-    if (pausedAt !== null) {
-      // Resume: accumulate paused duration
-      setPausedAccumMs((prev) => prev + (Date.now() - pausedAt));
-      setPausedAt(null);
-    } else {
-      setPausedAt(Date.now());
-    }
-  }, [pausedAt]);
-
-  const getElapsedSeconds = useCallback(() => {
-    if (startTime === null) return 0;
-    const now = isPaused && pausedAt !== null ? pausedAt : Date.now();
-    return Math.floor((now - startTime - pausedAccumMs) / 1000);
-  }, [startTime, isPaused, pausedAt, pausedAccumMs]);
-
-  // ── Exercise helpers ─────────────────────────────────────────────────
   const setExercises = (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => {
     setExercisesState(value as any);
   };
 
   const addExercises = (exercisesToAdd: Exercise[]) => {
     const newExercises = exercisesToAdd.map((ex: any) => {
+      // Generate a unique ID for each exercise instance (so duplicate exercises have different IDs)
       const uniqueInstanceId = `${ex.id}-${Date.now()}-${Math.random()}`;
+      
+      // Check if this is a routine exercise with saved sets and rest timer
       const hasSavedRoutineData = ex.routineSets && ex.routineSets.length > 0;
       const routineRestTimer = ex.restTimerDuration ?? 0;
-
+      
       return {
         ...ex,
-        id: uniqueInstanceId,
+        id: uniqueInstanceId, // Override the exercise ID with a unique instance ID
         notes: '',
         restTimerDuration: routineRestTimer,
         sets: hasSavedRoutineData
-          ? ex.routineSets.map((s: any) => ({ ...s, completed: false }))
-          : Array.from({ length: ex.defaultSets }, (_, i) => ({
+          ? // Use saved routine sets, but add completed flag
+            ex.routineSets.map((s: any) => ({
+              ...s,
+              completed: false,
+            }))
+          : // Create default sets
+            Array.from({ length: ex.defaultSets }, (_, i) => ({
               id: `${uniqueInstanceId}-set-${i}`,
               reps: '',
               weight: '',
               completed: false,
-              type: 'normal' as SetType,
             })),
       };
     });
-
+    
     setExercisesState((prev) => [...prev, ...newExercises]);
   };
 
@@ -132,24 +95,20 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const clearWorkout = (routineName: string = 'Custom Workout') => {
+    // Save completed workout before clearing
     if (exercises.length > 0) {
       const now = new Date();
-      const elapsedMs = startTime ? Date.now() - startTime - pausedAccumMs : 0;
       const completedWorkout: CompletedWorkout = {
         id: `${Date.now()}-${Math.random()}`,
         routineName,
         exercises,
         completedAt: now.getTime(),
-        durationMinutes: Math.round(elapsedMs / 60000),
+        durationMinutes: 0,
         totalVolumeKg: calculateWorkoutStats(exercises),
       };
       setCompletedWorkouts((prev) => [...prev, completedWorkout]);
     }
     setExercisesState([]);
-    setStartTimeState(null);
-    setPausedAt(null);
-    setPausedAccumMs(0);
-    setMinimized(false);
   };
 
   const getCompletedWorkoutsByDate = (date: Date) => {
@@ -199,14 +158,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         getCompletedWorkoutsByDate,
         getCompletedDatesThisMonth,
         getRecentWorkout,
-        startTime,
-        setStartTime,
-        isPaused,
-        togglePause,
-        ensureStarted,
-        getElapsedSeconds,
-        setMinimized,
-        isMinimized,
       }}
     >
       {children}

@@ -11,6 +11,7 @@ import {
   Pressable,
   Platform,
   Alert,
+  Switch,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -25,6 +26,7 @@ import {
   LogExercise,
   WorkoutSet,
   SetType,
+  WeightUnit,
 } from "../../context/WorkoutContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LogWorkout">;
@@ -43,6 +45,10 @@ const REST_TIMER_OPTIONS = [
   { label: "15s", value: 15 },
   { label: "30s", value: 30 },
   { label: "60s", value: 60 },
+  { label: "90s", value: 90 },
+  { label: "2 min", value: 120 },
+  { label: "3 min", value: 180 },
+  { label: "5 min", value: 300 },
 ];
 
 const SET_TYPE_INFO: Record<
@@ -78,17 +84,20 @@ const SET_TYPE_OPTIONS: {
   { key: "remove", label: "Remove Set", color: theme.colors.muted },
 ];
 
-// ── Scrollable minute picker ───────────────────────────────────────────
+/* ── Generic scroll-wheel ─────────────────────────────────────────── */
 const ITEM_HEIGHT = 44;
 const VISIBLE = 5;
-const MAX_MIN = 600;
 
-const MinutePicker = ({
+const WheelPicker = ({
   value,
   onChange,
+  count,
+  suffix,
 }: {
   value: number;
   onChange: (v: number) => void;
+  count: number;
+  suffix: string;
 }) => {
   const ref = useRef<ScrollView>(null);
   useEffect(() => {
@@ -99,7 +108,7 @@ const MinutePicker = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
-    <View style={{ height: ITEM_HEIGHT * VISIBLE }}>
+    <View style={{ flex: 1, height: ITEM_HEIGHT * VISIBLE }}>
       <View style={pickStyles.selectionBand} pointerEvents="none" />
       <ScrollView
         ref={ref}
@@ -109,10 +118,10 @@ const MinutePicker = ({
         contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
         onMomentumScrollEnd={(e) => {
           const i = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-          onChange(Math.max(0, Math.min(MAX_MIN, i)));
+          onChange(Math.max(0, Math.min(count - 1, i)));
         }}
       >
-        {Array.from({ length: MAX_MIN + 1 }).map((_, i) => (
+        {Array.from({ length: count }).map((_, i) => (
           <View key={i} style={pickStyles.row}>
             <Text
               style={[
@@ -120,7 +129,7 @@ const MinutePicker = ({
                 i === value && pickStyles.rowTextActive,
               ]}
             >
-              {i} min
+              {i} {suffix}
             </Text>
           </View>
         ))}
@@ -162,17 +171,18 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     togglePause,
     ensureStarted,
     getElapsedSeconds,
+    setElapsedSeconds,
     setMinimized,
+    settings,
+    updateSettings,
   } = useWorkout();
 
-  // Make sure a workout is "started" when this screen mounts
   useEffect(() => {
     ensureStarted();
-    setMinimized(false); // expanding from mini-bar lands here
+    setMinimized(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Seed exercises from route param
   useEffect(() => {
     const toAdd = route.params?.exercisesToAdd;
     if (toAdd && toAdd.length > 0) addExercises(toAdd);
@@ -190,14 +200,15 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     useState<ActiveRestTimer | null>(null);
   const [showExerciseMenu, setShowExerciseMenu] = useState<string | null>(null);
 
-  // Duration / start-time edit modal
+  /* Duration / start-time edit modal */
   const [durationOpen, setDurationOpen] = useState(false);
+  const [draftHours, setDraftHours] = useState(0);
   const [draftMinutes, setDraftMinutes] = useState(0);
   const [draftStart, setDraftStart] = useState<Date>(new Date());
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
 
-  // Set-type modal
+  /* Set-type modal */
   const [setTypeTarget, setSetTypeTarget] = useState<{
     exerciseId: string;
     setId: string;
@@ -206,19 +217,26 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     null,
   );
 
-  // Tick every second to drive the duration label
+  /* Settings modal */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [restPickerOpen, setRestPickerOpen] = useState(false);
+
+  /* Tick every second */
   useEffect(() => {
     const id = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Calculate stats
+  /* Stats */
   useEffect(() => {
     let volume = 0;
     let completedSets = 0;
     exercises.forEach((ex) => {
       ex.sets.forEach((set) => {
-        if (set.completed && set.type !== "warmup") {
+        const isWarmup = set.type === "warmup";
+        const include =
+          set.completed && (settings.countWarmupInVolume || !isWarmup);
+        if (include) {
           completedSets++;
           volume += Number(set.weight) * Number(set.reps);
         }
@@ -226,9 +244,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     });
     setTotalVolume(volume);
     setTotalSets(completedSets);
-  }, [exercises]);
+  }, [exercises, settings.countWarmupInVolume]);
 
-  // Rest timer countdown
+  /* Rest timer countdown */
   useEffect(() => {
     if (!activeRestTimer) return;
     const interval = setInterval(() => {
@@ -241,14 +259,15 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     return () => clearInterval(interval);
   }, [activeRestTimer]);
 
-  // ── helpers ────────────────────────────────────────────────────────
+  /* Helpers */
   const elapsed = getElapsedSeconds();
   const formatDuration = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
+    const s = Math.max(0, seconds);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
     if (h > 0) return `${h}h ${m}m`;
-    return `${m}m ${s}s`;
+    return `${m}m ${sec}s`;
   };
 
   const updateSet = (
@@ -288,7 +307,13 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       ),
     );
 
-    if (set && !set.completed && exercise && exercise.restTimerDuration > 0) {
+    if (
+      set &&
+      !set.completed &&
+      exercise &&
+      exercise.restTimerDuration > 0 &&
+      settings.autoStartRestTimer
+    ) {
       setActiveRestTimer({
         exerciseId,
         setId,
@@ -370,20 +395,28 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     clearWorkout(route.params?.routineName);
     navigation.goBack();
   };
-  const handleDiscard = () =>
+
+  const doDiscard = () => {
+    clearWorkout();
+    navigation.goBack();
+  };
+  const handleDiscard = () => {
+    if (!settings.confirmBeforeDiscard) {
+      doDiscard();
+      return;
+    }
     Alert.alert("Discard workout?", "You will lose your in-progress sets.", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: () => {
-          clearWorkout();
-          navigation.goBack();
-        },
-      },
+      { text: "Discard", style: "destructive", onPress: doDiscard },
     ]);
+  };
 
-  // ── Back chevron animation: rotate down when minimizing ──
+  const openExerciseDetail = (exerciseId: string) => {
+    // ExerciseDetail tabs: Overview / How To / History
+    navigation.navigate("ExerciseDetail", { exerciseId });
+  };
+
+  /* Back chevron animation */
   const backRotate = useRef(new Animated.Value(0)).current;
   const handleMinimize = () => {
     Animated.sequence([
@@ -407,9 +440,11 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     outputRange: [0, 4],
   });
 
-  // ── Duration modal helpers ──
+  /* Duration modal helpers */
   const openDurationModal = () => {
-    setDraftMinutes(Math.floor(elapsed / 60));
+    const total = Math.max(0, elapsed);
+    setDraftHours(Math.floor(total / 3600));
+    setDraftMinutes(Math.floor((total % 3600) / 60));
     setDraftStart(startTime ? new Date(startTime) : new Date());
     setDurationOpen(true);
   };
@@ -418,7 +453,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     if (startedAtChanged) {
       setStartTime(draftStart.getTime());
     } else {
-      setStartTime(Date.now() - draftMinutes * 60_000);
+      const totalSec = draftHours * 3600 + draftMinutes * 60;
+      setElapsedSeconds(totalSec);
     }
     setDurationOpen(false);
   };
@@ -443,7 +479,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Section */}
+      {/* Stats */}
       <View style={styles.statsSection}>
         <TouchableOpacity
           style={styles.statItem}
@@ -465,7 +501,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         <View style={styles.divider} />
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Volume</Text>
-          <Text style={styles.statValue}>{totalVolume} kg</Text>
+          <Text style={styles.statValue}>
+            {totalVolume} {settings.weightUnit}
+          </Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.statItem}>
@@ -501,7 +539,11 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             {exercises.map((exercise) => (
               <View key={exercise.id} style={styles.exerciseCard}>
                 <View style={styles.exerciseHeader}>
-                  <View style={styles.exerciseHeaderContent}>
+                  <TouchableOpacity
+                    style={styles.exerciseHeaderContent}
+                    activeOpacity={0.7}
+                    onPress={() => openExerciseDetail(exercise.id)}
+                  >
                     <View style={styles.exerciseIcon}>
                       <Ionicons
                         name="barbell"
@@ -509,8 +551,13 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         color={theme.colors.accent}
                       />
                     </View>
-                    <Text style={styles.exerciseTitle}>{exercise.name}</Text>
-                  </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.exerciseTitle}>{exercise.name}</Text>
+                      <Text style={styles.exerciseSubLink}>
+                        TAP FOR DETAILS
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.menuButton}
                     onPress={() => setShowExerciseMenu(exercise.id)}
@@ -555,7 +602,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                       PREVIOUS
                     </Text>
                     <Text style={[styles.setGridCell, styles.setLabel]}>
-                      KG
+                      {settings.weightUnit.toUpperCase()}
                     </Text>
                     <Text style={[styles.setGridCell, styles.setLabel]}>
                       REPS
@@ -657,7 +704,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         <View style={styles.bottomButtons}>
           <Button
             title="Settings"
-            onPress={() => {}}
+            onPress={() => setSettingsOpen(true)}
             style={styles.halfButton}
             variant="secondary"
           />
@@ -670,7 +717,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </View>
       </View>
 
-      {/* ── Rest Timer Modal ────────────────────────────────────────── */}
+      {/* Rest Timer Modal */}
       <Modal
         visible={showRestTimerModal !== null}
         transparent
@@ -685,24 +732,26 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 {exercises.find((ex) => ex.id === showRestTimerModal)?.name}
               </Text>
             )}
-            {REST_TIMER_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.timerOption,
-                  showRestTimerModal &&
-                    exercises.find((ex) => ex.id === showRestTimerModal)
-                      ?.restTimerDuration === option.value &&
-                    styles.timerOptionSelected,
-                ]}
-                onPress={() =>
-                  showRestTimerModal &&
-                  updateRestTimerDuration(showRestTimerModal, option.value)
-                }
-              >
-                <Text style={styles.timerOptionText}>{option.label}</Text>
-              </TouchableOpacity>
-            ))}
+            <ScrollView style={{ maxHeight: 320 }}>
+              {REST_TIMER_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.timerOption,
+                    showRestTimerModal &&
+                      exercises.find((ex) => ex.id === showRestTimerModal)
+                        ?.restTimerDuration === option.value &&
+                      styles.timerOptionSelected,
+                  ]}
+                  onPress={() =>
+                    showRestTimerModal &&
+                    updateRestTimerDuration(showRestTimerModal, option.value)
+                  }
+                >
+                  <Text style={styles.timerOptionText}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <Button
               title="Done"
               onPress={() => setShowRestTimerModal(null)}
@@ -713,7 +762,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </View>
       </Modal>
 
-      {/* ── Active Rest Display ─────────────────────────────────────── */}
+      {/* Active Rest Display */}
       {activeRestTimer && (
         <View style={styles.restTimerOverlay}>
           <View style={styles.restTimerDisplay}>
@@ -754,7 +803,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </View>
       )}
 
-      {/* ── Exercise Menu Modal ─────────────────────────────────────── */}
+      {/* Exercise Menu Modal */}
       <Modal
         visible={showExerciseMenu !== null}
         transparent
@@ -767,6 +816,21 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
           onPress={() => setShowExerciseMenu(null)}
         >
           <View style={styles.menuContent}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const id = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (id) openExerciseDetail(id);
+              }}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={theme.colors.accent}
+              />
+              <Text style={styles.menuItemText}>View Exercise Details</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => setShowExerciseMenu(null)}
@@ -790,23 +854,13 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <Text style={styles.menuItemText}>Replace Exercise</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => setShowExerciseMenu(null)}
-            >
-              <Ionicons
-                name="add-circle"
-                size={20}
-                color={theme.colors.accent}
-              />
-              <Text style={styles.menuItemText}>Add To Superset</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.menuItem, styles.menuItemDanger]}
               onPress={() => {
-                if (showExerciseMenu)
+                if (showExerciseMenu) {
                   setExercises((prev: LogExercise[]) =>
                     prev.filter((ex) => ex.id !== showExerciseMenu),
                   );
+                }
                 setShowExerciseMenu(null);
               }}
             >
@@ -819,7 +873,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Duration / Start time / Pause modal ─────────────────────── */}
+      {/* Duration / Start time / Pause modal */}
       <Modal
         visible={durationOpen}
         transparent
@@ -837,7 +891,20 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
-            <MinutePicker value={draftMinutes} onChange={setDraftMinutes} />
+            <View style={styles.wheelRow}>
+              <WheelPicker
+                value={draftHours}
+                onChange={setDraftHours}
+                count={24}
+                suffix="hr"
+              />
+              <WheelPicker
+                value={draftMinutes}
+                onChange={setDraftMinutes}
+                count={60}
+                suffix="min"
+              />
+            </View>
 
             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>
               START TIME
@@ -878,6 +945,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <DateTimePicker
                 value={draftStart}
                 mode="date"
+                maximumDate={new Date()}
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 onChange={(_e, d) => {
                   setShowDate(Platform.OS === "ios");
@@ -888,6 +956,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                       d.getMonth(),
                       d.getDate(),
                     );
+                    if (next.getTime() > Date.now()) next.setTime(Date.now());
                     setDraftStart(next);
                   }
                 }}
@@ -903,6 +972,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   if (d) {
                     const next = new Date(draftStart);
                     next.setHours(d.getHours(), d.getMinutes());
+                    if (next.getTime() > Date.now()) next.setTime(Date.now());
                     setDraftStart(next);
                   }
                 }}
@@ -952,7 +1022,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </Pressable>
       </Modal>
 
-      {/* ── Set type modal ──────────────────────────────────────────── */}
+      {/* Set type modal */}
       <Modal
         visible={setTypeTarget !== null}
         transparent
@@ -1009,7 +1079,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </Pressable>
       </Modal>
 
-      {/* ── Set type info modal ─────────────────────────────────────── */}
+      {/* Set type info modal */}
       <Modal
         visible={setTypeInfo !== null}
         transparent
@@ -1040,6 +1110,178 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 />
               </>
             )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Settings modal */}
+      <Modal
+        visible={settingsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSettingsOpen(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSettingsOpen(false)}
+        >
+          <Pressable
+            style={styles.modalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.modalTitle}>Workout Settings</Text>
+
+            <Text style={styles.settingLabel}>Weight unit</Text>
+            <View style={styles.segment}>
+              {(["kg", "lb"] as WeightUnit[]).map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  style={[
+                    styles.segmentBtn,
+                    settings.weightUnit === u && styles.segmentBtnActive,
+                  ]}
+                  onPress={() => updateSettings({ weightUnit: u })}
+                >
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      settings.weightUnit === u && styles.segmentTextActive,
+                    ]}
+                  >
+                    {u.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => setRestPickerOpen(true)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingTitle}>Default rest timer</Text>
+                <Text style={styles.settingHint}>
+                  Applied to new exercises you add
+                </Text>
+              </View>
+              <Text style={styles.settingValue}>
+                {settings.defaultRestSeconds > 0
+                  ? `${settings.defaultRestSeconds}s`
+                  : "Off"}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.colors.muted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingTitle}>Auto-start rest timer</Text>
+                <Text style={styles.settingHint}>
+                  Begin countdown when a set is completed
+                </Text>
+              </View>
+              <Switch
+                value={settings.autoStartRestTimer}
+                onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingTitle}>
+                  Count warm-ups in volume
+                </Text>
+                <Text style={styles.settingHint}>Include W sets in totals</Text>
+              </View>
+              <Switch
+                value={settings.countWarmupInVolume}
+                onValueChange={(v) =>
+                  updateSettings({ countWarmupInVolume: v })
+                }
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingTitle}>Confirm before discard</Text>
+                <Text style={styles.settingHint}>
+                  Ask before clearing the workout
+                </Text>
+              </View>
+              <Switch
+                value={settings.confirmBeforeDiscard}
+                onValueChange={(v) =>
+                  updateSettings({ confirmBeforeDiscard: v })
+                }
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            </View>
+
+            <Button
+              title="Done"
+              onPress={() => setSettingsOpen(false)}
+              fullWidth
+              style={{ marginTop: theme.spacing.md }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Default-rest picker (within Settings) */}
+      <Modal
+        visible={restPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRestPickerOpen(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setRestPickerOpen(false)}
+        >
+          <Pressable
+            style={styles.modalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.modalTitle}>Default rest timer</Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              {REST_TIMER_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.timerOption,
+                    settings.defaultRestSeconds === option.value &&
+                      styles.timerOptionSelected,
+                  ]}
+                  onPress={() => {
+                    updateSettings({ defaultRestSeconds: option.value });
+                    setRestPickerOpen(false);
+                  }}
+                >
+                  <Text style={styles.timerOptionText}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Button
+              title="Cancel"
+              variant="ghost"
+              onPress={() => setRestPickerOpen(false)}
+              fullWidth
+              style={{ marginTop: theme.spacing.sm }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1137,6 +1379,12 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
     color: theme.colors.accent,
+  },
+  exerciseSubLink: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontWeight: "600",
   },
   menuButton: { padding: theme.spacing.sm },
 
@@ -1239,7 +1487,7 @@ const styles = StyleSheet.create({
   bottomButtons: { flexDirection: "row", gap: theme.spacing.sm },
   halfButton: { flex: 1 },
 
-  /* ── Modal common ─────────────────────────────────────────────── */
+  /* Modal common */
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -1367,7 +1615,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightMedium,
   },
 
-  /* ── Duration modal extras ─────────────────────────────────────── */
+  /* Duration modal extras */
   fieldLabel: {
     color: theme.colors.muted,
     fontSize: 11,
@@ -1375,6 +1623,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: theme.spacing.sm,
   },
+  wheelRow: { flexDirection: "row", gap: theme.spacing.md },
   startRow: { flexDirection: "row", gap: theme.spacing.sm },
   startBtn: {
     flex: 1,
@@ -1415,7 +1664,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
   },
 
-  /* ── Set type modal extras ─────────────────────────────────────── */
+  /* Set type modal extras */
   setTypeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1437,5 +1686,55 @@ const styles = StyleSheet.create({
   helpBtn: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
+  },
+
+  /* Settings modal */
+  settingLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 1.2,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  segment: {
+    flexDirection: "row",
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+    borderRadius: theme.radius.sm,
+  },
+  segmentBtnActive: { backgroundColor: theme.colors.accent },
+  segmentText: { color: theme.colors.muted, fontWeight: theme.font.weightBold },
+  segmentTextActive: { color: theme.colors.accentText },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  settingTitle: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
+  settingHint: {
+    color: theme.colors.muted,
+    fontSize: theme.font.sizeXs,
+    marginTop: 2,
+  },
+  settingValue: {
+    color: theme.colors.accent,
+    fontWeight: theme.font.weightBold,
   },
 });
