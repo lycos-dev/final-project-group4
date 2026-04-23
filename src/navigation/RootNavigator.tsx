@@ -30,7 +30,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Goals: undefined;
-  LogWorkout: { exercisesToAdd?: Exercise[] };
+  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string };
   AddExercise: undefined;
   CreateRoutine: { routineId?: string; targetFolderId?: string };
   SelectExerciseForRoutine: undefined;

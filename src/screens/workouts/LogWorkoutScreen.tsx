@@ -367,7 +367,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   const handleAddExercise = () => navigation.navigate("AddExercise");
   const handleFinish = () => {
-    clearWorkout();
+    clearWorkout(route.params?.routineName);
     navigation.goBack();
   };
   const handleDiscard = () =>

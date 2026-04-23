@@ -79,6 +79,7 @@ export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
       ...currentRoutine.exercises,
       ...toAdd.map((ex) => ({
         ...ex,
+        instanceId: `${ex.id}-${Date.now()}-${Math.random()}`, // Unique ID for each instance
         notes: '',
       })),
     ];

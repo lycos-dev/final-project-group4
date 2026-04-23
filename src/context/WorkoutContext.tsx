@@ -17,62 +17,97 @@ export interface LogExercise extends Exercise {
   sets: WorkoutSet[];
 }
 
+export interface CompletedWorkout {
+  id: string;
+  routineName: string;
+  exercises: LogExercise[];
+  completedAt: number; // timestamp
+  durationMinutes: number;
+  totalVolumeKg: number;
+}
+
 interface WorkoutContextType {
   exercises: LogExercise[];
   setExercises: (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => void;
   addExercises: (exercisesToAdd: Exercise[]) => void;
-  clearWorkout: () => void;
-
-  /** True when there is an in-progress workout (used by the floating mini-bar). */
-  isActive: boolean;
-
-  // ── Timing ─────────────────────────────────────────────────────────────
-  startTime: number | null;
-  setStartTime: (ts: number) => void;
-  pausedAt: number | null;
-  pausedAccumMs: number;
-  isPaused: boolean;
-  togglePause: () => void;
-  /** Make sure a workout has a startTime — call when entering the log screen. */
-  ensureStarted: () => void;
-  /** Current elapsed seconds based on startTime + pause accounting. */
-  getElapsedSeconds: () => number;
-
-  // ── Minimized (floating bar) ──────────────────────────────────────────
-  isMinimized: boolean;
-  setMinimized: (b: boolean) => void;
+  clearWorkout: (routineName?: string) => void;
+  completedWorkouts: CompletedWorkout[];
+  getCompletedWorkoutsByDate: (date: Date) => CompletedWorkout[];
+  getCompletedDatesThisMonth: () => number[];
+  getRecentWorkout: () => CompletedWorkout | null;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [exercises, setExercisesState] = useState<LogExercise[]>([]);
-  const [startTime, setStartTimeState] = useState<number | null>(null);
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const [pausedAccumMs, setPausedAccumMs] = useState(0);
-  const [isMinimized, setMinimized] = useState(false);
+  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
 
   const setExercises = (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => {
     setExercisesState(value as any);
   };
 
   const addExercises = (exercisesToAdd: Exercise[]) => {
-    const newExercises: LogExercise[] = exercisesToAdd.map((ex) => ({
-      ...ex,
-      notes: '',
-      restTimerDuration: 0,
-      sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
-        id: `${ex.id}-set-${i}-${Date.now()}-${Math.random()}`,
-        reps: String(ex.defaultReps),
-        weight: '0',
-        completed: false,
-        type: 'normal' as SetType,
-      })),
-    }));
+    const newExercises = exercisesToAdd.map((ex: any) => {
+      // Generate a unique ID for each exercise instance (so duplicate exercises have different IDs)
+      const uniqueInstanceId = `${ex.id}-${Date.now()}-${Math.random()}`;
+      
+      // Check if this is a routine exercise with saved sets and rest timer
+      const hasSavedRoutineData = ex.routineSets && ex.routineSets.length > 0;
+      const routineRestTimer = ex.restTimerDuration ?? 0;
+      
+      return {
+        ...ex,
+        id: uniqueInstanceId, // Override the exercise ID with a unique instance ID
+        notes: '',
+        restTimerDuration: routineRestTimer,
+        sets: hasSavedRoutineData
+          ? // Use saved routine sets, but add completed flag
+            ex.routineSets.map((s: any) => ({
+              ...s,
+              completed: false,
+            }))
+          : // Create default sets
+            Array.from({ length: ex.defaultSets }, (_, i) => ({
+              id: `${uniqueInstanceId}-set-${i}`,
+              reps: '',
+              weight: '',
+              completed: false,
+            })),
+      };
+    });
+    
     setExercisesState((prev) => [...prev, ...newExercises]);
   };
 
-  const clearWorkout = () => {
+  const calculateWorkoutStats = (exs: LogExercise[]) => {
+    let totalVolume = 0;
+    exs.forEach((ex) => {
+      ex.sets.forEach((set) => {
+        if (set.weight && set.reps) {
+          const weight = parseFloat(set.weight) || 0;
+          const reps = parseInt(set.reps) || 0;
+          totalVolume += weight * reps;
+        }
+      });
+    });
+    return totalVolume;
+  };
+
+  const clearWorkout = (routineName: string = 'Custom Workout') => {
+    // Save completed workout before clearing
+    if (exercises.length > 0) {
+      const now = new Date();
+      const completedWorkout: CompletedWorkout = {
+        id: `${Date.now()}-${Math.random()}`,
+        routineName,
+        exercises,
+        completedAt: now.getTime(),
+        durationMinutes: Math.round((Date.now() - (exercises[0]?.startTime || now.getTime())) / 60000),
+        totalVolumeKg: calculateWorkoutStats(exercises),
+      };
+      setCompletedWorkouts((prev) => [...prev, completedWorkout]);
+    }
     setExercisesState([]);
     setStartTimeState(null);
     setPausedAt(null);
@@ -80,33 +115,41 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     setMinimized(false);
   };
 
-  const ensureStarted = useCallback(() => {
-    setStartTimeState((t) => (t == null ? Date.now() : t));
-  }, []);
+  const getCompletedWorkoutsByDate = (date: Date) => {
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
 
-  const setStartTime = (ts: number) => {
-    setStartTimeState(ts);
-    setPausedAccumMs(0);
-    setPausedAt(null);
+    return completedWorkouts.filter((w) => {
+      const workoutDate = new Date(w.completedAt);
+      return workoutDate >= targetDate && workoutDate < nextDate;
+    });
   };
 
-  const togglePause = () => {
-    if (pausedAt == null) {
-      setPausedAt(Date.now());
-    } else {
-      setPausedAccumMs((acc) => acc + (Date.now() - pausedAt));
-      setPausedAt(null);
-    }
+  const getCompletedDatesThisMonth = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const completedDates = new Set<number>();
+    completedWorkouts.forEach((w) => {
+      const workoutDate = new Date(w.completedAt);
+      if (
+        workoutDate.getMonth() === currentMonth &&
+        workoutDate.getFullYear() === currentYear
+      ) {
+        completedDates.add(workoutDate.getDate());
+      }
+    });
+
+    return Array.from(completedDates).sort((a, b) => a - b);
   };
 
-  const getElapsedSeconds = () => {
-    if (startTime == null) return 0;
-    const end = pausedAt ?? Date.now();
-    return Math.max(0, Math.floor((end - startTime - pausedAccumMs) / 1000));
+  const getRecentWorkout = (): CompletedWorkout | null => {
+    if (completedWorkouts.length === 0) return null;
+    return completedWorkouts[completedWorkouts.length - 1];
   };
-
-  const isActive = exercises.length > 0 || startTime != null;
-  const isPaused = pausedAt != null;
 
   return (
     <WorkoutContext.Provider
@@ -115,17 +158,10 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         setExercises,
         addExercises,
         clearWorkout,
-        isActive,
-        startTime,
-        setStartTime,
-        pausedAt,
-        pausedAccumMs,
-        isPaused,
-        togglePause,
-        ensureStarted,
-        getElapsedSeconds,
-        isMinimized,
-        setMinimized,
+        completedWorkouts,
+        getCompletedWorkoutsByDate,
+        getCompletedDatesThisMonth,
+        getRecentWorkout,
       }}
     >
       {children}

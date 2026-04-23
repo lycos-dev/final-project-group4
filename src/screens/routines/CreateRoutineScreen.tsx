@@ -182,17 +182,20 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
         const newStates = new Map<string, ExerciseState>();
         sourcedExercises.forEach((ex) => {
-          if (exerciseStates.has(ex.id)) {
-            newStates.set(ex.id, exerciseStates.get(ex.id)!);
+          const key = ex.instanceId || ex.id;
+          if (exerciseStates.has(key)) {
+            newStates.set(key, exerciseStates.get(key)!);
           } else {
-            newStates.set(ex.id, {
+            newStates.set(key, {
               notes: ex.notes ?? '',
-              restTimerDuration: 0,
-              sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
-                id: `${ex.id}-set-${i}`,
-                reps: String(ex.defaultReps),
-                weight: '0',
-              })),
+              restTimerDuration: ex.restTimerDuration ?? 0,
+              sets: (ex.routineSets && ex.routineSets.length > 0) 
+                ? ex.routineSets 
+                : Array.from({ length: ex.defaultSets }, (_, i) => ({
+                    id: `${key}-set-${i}`,
+                    reps: '',
+                    weight: '',
+                  })),
             });
           }
         });
@@ -270,8 +273,8 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     }
   };
 
-  const removeExercise = (exerciseId: string) => {
-    setExercises((prev) => prev.filter((e) => e.id !== exerciseId));
+  const removeExercise = (exerciseInstanceId: string) => {
+    setExercises((prev) => prev.filter((e) => (e.instanceId || e.id) !== exerciseInstanceId));
     setExerciseStates((prev) => {
       const m = new Map(prev);
       m.delete(exerciseId);
@@ -280,7 +283,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     setIsDirty(true);
   };
 
-  const updateExerciseNote = (exerciseId: string, note: string) => {
+  const updateExerciseNote = (exerciseInstanceId: string, note: string) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
       const s = m.get(exerciseId);
@@ -290,7 +293,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     setIsDirty(true);
   };
 
-  const updateRestTimer = (exerciseId: string, duration: number) => {
+  const updateRestTimer = (exerciseInstanceId: string, duration: number) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
       const s = m.get(exerciseId);
@@ -319,7 +322,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     setIsDirty(true);
   };
 
-  const addSet = (exerciseId: string) => {
+  const addSet = (exerciseInstanceId: string) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
       const s = m.get(exerciseId);
@@ -471,7 +474,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   <TextInput
                     placeholder="Add routine notes here"
                     value={state.notes}
-                    onChangeText={(text) => updateExerciseNote(exercise.id, text)}
+                    onChangeText={(text) => updateExerciseNote(key, text)}
                     style={styles.notesInput}
                     placeholderTextColor={theme.colors.muted}
                   />
@@ -547,7 +550,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
                   <TouchableOpacity
                     style={styles.addSetButton}
-                    onPress={() => addSet(exercise.id)}
+                    onPress={() => addSet(key)}
                   >
                     <Text style={styles.addSetButtonText}>+ Add Set</Text>
                   </TouchableOpacity>
