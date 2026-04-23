@@ -89,26 +89,49 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
   );
 };
 
-/** Floating mini-bar that appears above the tab bar while a workout is in progress. */
-const WorkoutMiniBar = ({ activeRouteName }: { activeRouteName: string }) => {
+/**
+ * Floating pill shown ABOVE the tab bar when a workout is minimized.
+ * Visible on every tab — the user shouldn't lose track of it.
+ */
+const WorkoutMiniBar = () => {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { isActive, isMinimized, setMinimized, clearWorkout, getElapsedSeconds, isPaused } = useWorkout();
+  const { isActive, isMinimized, setMinimized, discardWorkout, getElapsedSeconds, isPaused } = useWorkout();
   const [, force] = useState(0);
 
-  // tick every second so the duration updates
+  // Slide-in animation when the bar becomes visible
+  const slideY = useRef(new Animated.Value(80)).current;
+
+  useEffect(() => {
+    if (isActive && isMinimized) {
+      Animated.spring(slideY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 180,
+        friction: 18,
+      }).start();
+    } else {
+      // Reset so next appearance animates again
+      slideY.setValue(80);
+    }
+  }, [isActive, isMinimized]);
+
+  // Tick every second to keep the elapsed display live
   useEffect(() => {
     if (!isActive || isPaused) return;
-    const i = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(i);
+    const id = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(id);
   }, [isActive, isPaused]);
 
-  const visibleTab = activeRouteName === 'Home' || activeRouteName === 'Library';
-  if (!isActive || !isMinimized || !visibleTab) return null;
+  if (!isActive || !isMinimized) return null;
 
   const elapsed = getElapsedSeconds();
-  const m = Math.floor(elapsed / 60);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
   const s = elapsed % 60;
-  const text = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  // Format: "1h 02m" when ≥ 1 hour, "MM:SS" otherwise
+  const timeText = h > 0
+    ? `${h}h ${String(m).padStart(2, '0')}m`
+    : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
   const expand = () => {
     setMinimized(false);
@@ -121,30 +144,40 @@ const WorkoutMiniBar = ({ activeRouteName }: { activeRouteName: string }) => {
       'Your in-progress workout will be permanently lost. This cannot be undone.',
       [
         { text: 'Keep workout', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => clearWorkout() },
+        { text: 'Discard', style: 'destructive', onPress: discardWorkout },
       ],
     );
   };
 
   return (
-    <View style={styles.miniBarWrap} pointerEvents="box-none">
+    <Animated.View
+      style={[styles.miniBarWrap, { transform: [{ translateY: slideY }] }]}
+      pointerEvents="box-none"
+    >
       <TouchableOpacity activeOpacity={0.85} onPress={expand} style={styles.miniBar}>
         <View style={styles.miniDot} />
         <View style={{ flex: 1 }}>
           <Text style={styles.miniTitle}>Workout in progress</Text>
           <Text style={styles.miniSub}>
-            {isPaused ? 'Paused · ' : ''}
-            {text}
+            {isPaused ? 'Paused · ' : ''}{timeText}
           </Text>
         </View>
-        <TouchableOpacity onPress={expand} style={styles.miniIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={expand}
+          style={styles.miniIconBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="chevron-up" size={20} color={theme.colors.accentText} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={askDiscard} style={[styles.miniIconBtn, styles.miniIconBtnGhost]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={askDiscard}
+          style={[styles.miniIconBtn, styles.miniIconBtnGhost]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="close" size={18} color={theme.colors.text} />
         </TouchableOpacity>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -153,7 +186,6 @@ interface CustomTabBarProps { state: any; descriptors: any; navigation: any; }
 const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
   const insets = useSafeAreaInsets();
   const activeIdx = state.index;
-  const activeRouteName = state.routes[activeIdx]?.name ?? '';
 
   const bottomPad = insets.bottom > 0 ? insets.bottom : Platform.OS === 'android' ? 8 : 0;
 
@@ -169,7 +201,8 @@ const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
 
   return (
     <View>
-      <WorkoutMiniBar activeRouteName={activeRouteName} />
+      {/* Mini-bar appears on ALL tabs, not just Home/Library */}
+      <WorkoutMiniBar />
       <View style={[styles.barWrapper, { minHeight: BAR_HEIGHT + bottomPad, paddingBottom: bottomPad }]}>
         <View style={styles.topDivider} />
         <Animated.View style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />

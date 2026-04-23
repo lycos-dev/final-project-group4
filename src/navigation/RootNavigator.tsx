@@ -23,6 +23,11 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   Tabs: undefined;
+  /**
+   * Always pass the LIBRARY exercise id here (the original id from ExerciseContext /
+   * mockExercises), NOT the unique workout-instance id that LogWorkout assigns.
+   * LogExercise.originalExerciseId holds the right value.
+   */
   ExerciseDetail: { exerciseId: string };
   ExerciseForm: { exerciseId?: string };
   CustomLibrary: undefined;
@@ -68,20 +73,23 @@ export default function RootNavigator() {
           <Stack.Screen name="Tabs"           component={BottomTabs}                    options={{ headerShown: false }} />
           <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen}          options={{ title: 'Exercise', gestureEnabled: false }} />
           <Stack.Screen name="ExerciseForm"   component={ExerciseFormScreen}            options={{ presentation: 'modal', title: 'Exercise' }} />
-          {/* CustomLibrary: disable iOS swipe-back gesture so the manual back button always works */}
           <Stack.Screen
             name="CustomLibrary"
             component={CustomLibraryScreen}
             options={{ headerShown: false, gestureEnabled: false, animation: 'slide_from_right' }}
           />
           <Stack.Screen name="ExploreRoutines" component={ExploreRoutinesScreen}        options={{ headerShown: false }} />
-          <Stack.Screen name="Goals"          component={GoalsScreen}                   options={{ title: 'Goals' }} />
-          <Stack.Screen name="EditProfile"    component={EditProfileScreen}             options={{ presentation: 'modal', title: 'Edit Profile' }} />
-          <Stack.Screen name="Settings"       component={SettingsScreen}                options={{ title: 'Settings' }} />
-          <Stack.Screen name="LogWorkout"     component={LogWorkoutScreen}              options={{ headerShown: false }} />
-          <Stack.Screen name="AddExercise"    component={AddExerciseScreen}             options={{ headerShown: false }} />
-          <Stack.Screen name="CreateRoutine"  component={CreateRoutineScreen}           options={{ presentation: 'modal' }} />
-          <Stack.Screen name="SelectExerciseForRoutine" component={SelectExerciseForRoutineScreen} options={{ title: 'Select Exercise' }} />
+          <Stack.Screen name="Goals"           component={GoalsScreen}                  options={{ title: 'Goals' }} />
+          <Stack.Screen name="EditProfile"     component={EditProfileScreen}            options={{ presentation: 'modal', title: 'Edit Profile' }} />
+          <Stack.Screen name="Settings"        component={SettingsScreen}               options={{ title: 'Settings' }} />
+          <Stack.Screen name="LogWorkout"      component={LogWorkoutScreen}             options={{ headerShown: false }} />
+          <Stack.Screen name="AddExercise"     component={AddExerciseScreen}            options={{ headerShown: false }} />
+          <Stack.Screen name="CreateRoutine"   component={CreateRoutineScreen}          options={{ presentation: 'modal' }} />
+          <Stack.Screen
+            name="SelectExerciseForRoutine"
+            component={SelectExerciseForRoutineScreen}
+            options={{ title: 'Select Exercise' }}
+          />
         </>
       )}
     </Stack.Navigator>
