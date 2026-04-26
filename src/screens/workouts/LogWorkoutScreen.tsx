@@ -288,6 +288,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   const [showRestTimerModal, setShowRestTimerModal] = useState<string | null>(null);
   const [activeRestTimer,    setActiveRestTimer]    = useState<ActiveRestTimer | null>(null);
+  const [restTimerPaused,    setRestTimerPaused]    = useState(false);
   const [showExerciseMenu,   setShowExerciseMenu]   = useState<string | null>(null);
 
   // Duration edit modal
@@ -335,7 +336,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // ── Rest-timer countdown ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!activeRestTimer) return;
+    if (!activeRestTimer || restTimerPaused) return;
     const id = setInterval(() => {
       setActiveRestTimer((prev) => {
         if (!prev) return null;
@@ -344,7 +345,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [activeRestTimer]);
+  }, [activeRestTimer, restTimerPaused]);
 
   // ── Exercise helpers ──────────────────────────────────────────────────────
   const elapsed = getElapsedSeconds();
@@ -375,6 +376,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     if (set && !set.completed) {
       if (settings.vibrateOnSetComplete) Vibration.vibrate(60);
       if (exercise && exercise.restTimerDuration > 0 && settings.autoStartRestTimer) {
+        setRestTimerPaused(false);
         setActiveRestTimer({
           exerciseId,
           setId,
@@ -433,7 +435,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     setShowRestTimerModal(null);
   };
 
-  const skipRestTimer   = () => setActiveRestTimer(null);
+  const skipRestTimer   = () => { setActiveRestTimer(null); setRestTimerPaused(false); };
+  const toggleRestTimerPause = () => setRestTimerPaused((p) => !p);
   const adjustRestTimer = (delta: number) =>
     setActiveRestTimer((prev) =>
       prev ? { ...prev, remainingTime: Math.max(0, prev.remainingTime + delta) } : null,
@@ -707,6 +710,62 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
       {/* ── Bottom actions ──────────────────────────────────────────────────── */}
       <View style={styles.actionsSection}>
+        {/* ── Inline rest timer banner ────────────────────────────────────── */}
+        {activeRestTimer && (
+          <View style={styles.inlineRestTimer}>
+            {/* Progress bar */}
+            <View style={styles.restProgressTrack}>
+              <View
+                style={[
+                  styles.restProgressFill,
+                  {
+                    width: `${(activeRestTimer.remainingTime / activeRestTimer.duration) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
+
+            {/* Timer row */}
+            <View style={styles.inlineRestRow}>
+              {/* Label + exercise name */}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inlineRestLabel}>REST</Text>
+                <Text style={styles.inlineRestExercise} numberOfLines={1}>
+                  {exercises.find((ex) => ex.id === activeRestTimer.exerciseId)?.name}
+                </Text>
+              </View>
+
+              {/* Controls */}
+              <View style={styles.inlineRestControls}>
+                <TouchableOpacity style={styles.inlineAdjustBtn} onPress={() => adjustRestTimer(-15)}>
+                  <Text style={styles.inlineAdjustText}>−15</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.inlineTimerDisplay}>
+                  {String(Math.floor(activeRestTimer.remainingTime / 60)).padStart(2, "0")}:
+                  {String(activeRestTimer.remainingTime % 60).padStart(2, "0")}
+                </Text>
+
+                <TouchableOpacity style={styles.inlineAdjustBtn} onPress={() => adjustRestTimer(15)}>
+                  <Text style={styles.inlineAdjustText}>+15</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.inlinePauseBtn} onPress={toggleRestTimerPause}>
+                  <Ionicons
+                    name={restTimerPaused ? "play" : "pause"}
+                    size={16}
+                    color={theme.colors.accentText}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.inlineSkipBtn} onPress={skipRestTimer}>
+                  <Ionicons name="play-skip-forward" size={16} color={theme.colors.muted} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         <Button title="+ Add Exercise" onPress={handleAddExercise} fullWidth style={styles.addButton} />
         <Button
           title="Discard"
@@ -715,31 +774,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
           variant="destructive"
         />
       </View>
-
-      {/* ── Active rest timer overlay ───────────────────────────────────────── */}
-      {activeRestTimer && (
-        <View style={styles.restTimerOverlay}>
-          <View style={styles.restTimerDisplay}>
-            <Text style={styles.restTimerDisplayTitle}>Rest Timer</Text>
-            <Text style={styles.restTimerDisplayExercise}>
-              {exercises.find((ex) => ex.id === activeRestTimer.exerciseId)?.name}
-            </Text>
-            <View style={styles.restTimerContent}>
-              <TouchableOpacity style={styles.timerAdjustButton} onPress={() => adjustRestTimer(-15)}>
-                <Text style={styles.timerAdjustText}>-15</Text>
-              </TouchableOpacity>
-              <Text style={styles.timerDisplay}>
-                {String(Math.floor(activeRestTimer.remainingTime / 60)).padStart(2, "0")}:
-                {String(activeRestTimer.remainingTime % 60).padStart(2, "0")}
-              </Text>
-              <TouchableOpacity style={styles.timerAdjustButton} onPress={() => adjustRestTimer(15)}>
-                <Text style={styles.timerAdjustText}>+15</Text>
-              </TouchableOpacity>
-            </View>
-            <Button title="Skip" onPress={skipRestTimer} fullWidth style={styles.skipButton} />
-          </View>
-        </View>
-      )}
 
       {/* ── Exercise context menu ───────────────────────────────────────────── */}
       <Modal
@@ -1483,52 +1517,85 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
   },
 
-  restTimerOverlay: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: theme.spacing.lg,
-  },
-  restTimerDisplay: {
+  /* Inline rest timer banner */
+  inlineRestTimer: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    overflow: "hidden",
+    marginBottom: theme.spacing.sm,
+  },
+  restProgressTrack: {
+    height: 3,
+    backgroundColor: theme.colors.border,
     width: "100%",
+  },
+  restProgressFill: {
+    height: 3,
+    backgroundColor: theme.colors.accent,
+  },
+  inlineRestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  inlineRestLabel: {
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.accent,
+    letterSpacing: 1.2,
+  },
+  inlineRestExercise: {
+    fontSize: theme.font.sizeXs,
+    color: theme.colors.muted,
+    marginTop: 1,
+  },
+  inlineRestControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  inlineAdjustBtn: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.bg,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  restTimerDisplayTitle: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    textAlign: "center",
-  },
-  restTimerDisplayExercise: {
-    color: theme.colors.muted,
+  inlineAdjustText: {
+    color: theme.colors.accent,
     fontSize: theme.font.sizeSm,
-    textAlign: "center",
-    marginTop: 4,
+    fontWeight: theme.font.weightBold,
   },
-  restTimerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: theme.spacing.lg,
-  },
-  timerAdjustButton: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.bg,
-  },
-  timerAdjustText: { color: theme.colors.accent, fontWeight: theme.font.weightBold },
-  timerDisplay: {
+  inlineTimerDisplay: {
     color: theme.colors.text,
-    fontSize: 36,
+    fontSize: 22,
     fontWeight: theme.font.weightBlack,
+    minWidth: 58,
+    textAlign: "center",
   },
-  skipButton: {},
+  inlinePauseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inlineSkipBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   menuOverlay: {
     flex: 1,
