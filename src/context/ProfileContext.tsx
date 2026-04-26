@@ -1,12 +1,22 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Profile, Settings } from '../types';
+import { Profile, Settings, Goal, GoalType } from '../types';
 import { useAuth } from './AuthContext';
 
 interface ProfileContextValue {
   profile: Profile;
   settings: Settings;
+  goals: Goal[];
   updateProfile: (p: Partial<Profile>) => void;
   updateSettings: (s: Partial<Settings>) => void;
+  createGoal: (goal: {
+    name: string;
+    type: GoalType;
+    targetValue: number;
+    startingValue: number;
+    deadline: string;
+  }) => void;
+  updateGoalProgress: (goalId: string, currentValue: number) => void;
+  deleteGoal: (goalId: string) => void;
 }
 
 const ProfileContext = createContext<ProfileContextValue | undefined>(undefined);
@@ -24,6 +34,7 @@ const initialSettings: Settings = { units: 'metric', notifications: true };
 export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile>(initialProfile);
   const [settings, setSettings] = useState<Settings>(initialSettings);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const { user } = useAuth();
 
   // Update profile when user logs in
@@ -45,8 +56,55 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const updateProfile = (p: Partial<Profile>) => setProfile((prev) => ({ ...prev, ...p }));
   const updateSettings = (s: Partial<Settings>) => setSettings((prev) => ({ ...prev, ...s }));
 
+  const createGoal = (goal: {
+    name: string;
+    type: GoalType;
+    targetValue: number;
+    startingValue: number;
+    deadline: string;
+  }) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setGoals((prev) => [
+      {
+        id,
+        name: goal.name,
+        type: goal.type,
+        targetValue: goal.targetValue,
+        startingValue: goal.startingValue,
+        currentValue: goal.startingValue,
+        hasManualUpdate: false,
+        deadline: goal.deadline,
+        createdAt: Date.now(),
+      },
+      ...prev,
+    ]);
+  };
+
+  const updateGoalProgress = (goalId: string, currentValue: number) => {
+    setGoals((prev) =>
+      prev.map((goal) =>
+        goal.id === goalId ? { ...goal, currentValue, hasManualUpdate: true } : goal
+      )
+    );
+  };
+
+  const deleteGoal = (goalId: string) => {
+    setGoals((prev) => prev.filter((goal) => goal.id !== goalId));
+  };
+
   return (
-    <ProfileContext.Provider value={{ profile, settings, updateProfile, updateSettings }}>
+    <ProfileContext.Provider
+      value={{
+        profile,
+        settings,
+        goals,
+        updateProfile,
+        updateSettings,
+        createGoal,
+        updateGoalProgress,
+        deleteGoal,
+      }}
+    >
       {children}
     </ProfileContext.Provider>
   );

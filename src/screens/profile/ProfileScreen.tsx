@@ -8,6 +8,7 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ export const ProfileScreen = () => {
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const bottomTabBarHeight = useBottomTabBarHeight();
   const isImperial = settings.units === 'imperial';
 
   // ── Scroll to top every time this tab gains focus ───────────────────
@@ -49,12 +51,7 @@ export const ProfileScreen = () => {
 
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
 
-  // ── Bottom clearance: tab bar (64) + iOS home indicator inset ───────
-  // The bottom tab bar is 64px. On devices with a home indicator the
-  // safe-area bottom inset (typically 34px on modern iPhones) is already
-  // consumed by the tab bar itself, so we only add a comfortable visual
-  // buffer on top of that rather than double-counting the inset.
-  const bottomPadding = 64 + (Platform.OS === 'ios' ? theme.spacing.xl : theme.spacing.lg);
+  const bottomPadding = bottomTabBarHeight + theme.spacing.lg;
 
   return (
     <ScrollView

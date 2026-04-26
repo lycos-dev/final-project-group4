@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -170,6 +171,7 @@ const DraggableRoutineCard = ({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export const ExerciseListScreen = () => {
   const nav = useNavigation<Nav>();
+  const bottomTabBarHeight = useBottomTabBarHeight();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
 
@@ -389,7 +391,10 @@ export const ExerciseListScreen = () => {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: bottomTabBarHeight + theme.spacing.lg },
+        ]}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollOffsetY.current = e.nativeEvent.contentOffset.y; }}
         // Attach global drag tracker only while a drag is active
@@ -898,7 +903,7 @@ export const ExerciseListScreen = () => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
-  scrollContent: { paddingBottom: theme.spacing.xxl },
+  scrollContent: {},
 
   topSection: {
     paddingHorizontal: theme.spacing.lg,
