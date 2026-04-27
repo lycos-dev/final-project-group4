@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { View, ScrollView, StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface Props {
@@ -11,9 +12,10 @@ interface Props {
 }
 
 export const Screen = ({ children, scroll = false, padded = true, style }: Props) => {
+  const { theme: appTheme } = useTheme();
   const inner = padded ? styles.padded : undefined;
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: appTheme.colors.bg }]} edges={['top', 'left', 'right']}>
       {scroll ? (
         <ScrollView contentContainerStyle={[styles.scroll, inner, style]} keyboardShouldPersistTaps="handled">
           {children}

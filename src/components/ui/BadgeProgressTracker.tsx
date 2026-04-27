@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface Props {
@@ -18,6 +19,9 @@ export const BadgeProgressTracker = ({
   icon = 'medal',
   description,
 }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
+
   const progress = useMemo(() => {
     const percent = (currentValue / goalValue) * 100;
     return Math.min(percent, 100);
@@ -25,7 +29,7 @@ export const BadgeProgressTracker = ({
 
   const isUnlocked = currentValue >= goalValue;
   const badgeOpacity = isUnlocked ? 1 : 0.5;
-  const badgeColor = isUnlocked ? theme.colors.accent : theme.colors.muted;
+  const badgeColor = isUnlocked ? appTheme.colors.accent : appTheme.colors.muted;
 
   return (
     <View style={styles.container}>
@@ -42,7 +46,7 @@ export const BadgeProgressTracker = ({
             <MaterialCommunityIcons
               name="check"
               size={16}
-              color={theme.colors.accentText}
+              color={appTheme.colors.accentText}
             />
           </View>
         )}
@@ -60,7 +64,7 @@ export const BadgeProgressTracker = ({
               styles.progressBarFill,
               { 
                 width: `${progress}%`,
-                backgroundColor: isUnlocked ? theme.colors.success : theme.colors.accent,
+                backgroundColor: isUnlocked ? appTheme.colors.success : appTheme.colors.accent,
               },
             ]}
           />
@@ -82,75 +86,76 @@ export const BadgeProgressTracker = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.lg,
-  },
-  badgeContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmarkBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: theme.colors.success,
-    borderRadius: theme.radius.pill,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.surface,
-  },
-  content: {
-    flex: 1,
-  },
-  name: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    marginBottom: theme.spacing.xs,
-  },
-  description: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    marginBottom: theme.spacing.sm,
-  },
-  progressBarBackground: {
-    width: '100%',
-    height: 6,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderRadius: theme.radius.sm,
-    overflow: 'hidden',
-    marginBottom: theme.spacing.xs,
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: theme.radius.sm,
-  },
-  progressText: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
-    fontWeight: theme.font.weightMedium,
-  },
-  unlockedBadge: {
-    backgroundColor: theme.colors.success,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.radius.sm,
-  },
-  unlockedText: {
-    color: theme.colors.accentText,
-    fontSize: theme.font.sizeXs,
-    fontWeight: theme.font.weightBold,
-  },
-});
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: appTheme.colors.surface,
+      borderRadius: appTheme.radius.lg,
+      borderWidth: 1,
+      borderColor: appTheme.colors.border,
+      padding: appTheme.spacing.lg,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: appTheme.spacing.lg,
+    },
+    badgeContainer: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkmarkBadge: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      backgroundColor: appTheme.colors.success,
+      borderRadius: appTheme.radius.pill,
+      width: 24,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: appTheme.colors.surface,
+    },
+    content: {
+      flex: 1,
+    },
+    name: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightBold,
+      marginBottom: appTheme.spacing.xs,
+    },
+    description: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+      marginBottom: appTheme.spacing.sm,
+    },
+    progressBarBackground: {
+      width: '100%',
+      height: 6,
+      backgroundColor: appTheme.colors.surfaceAlt,
+      borderRadius: appTheme.radius.sm,
+      overflow: 'hidden',
+      marginBottom: appTheme.spacing.xs,
+    },
+    progressBarFill: {
+      height: '100%',
+      borderRadius: appTheme.radius.sm,
+    },
+    progressText: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+      fontWeight: appTheme.font.weightMedium,
+    },
+    unlockedBadge: {
+      backgroundColor: appTheme.colors.success,
+      paddingHorizontal: appTheme.spacing.sm,
+      paddingVertical: 4,
+      borderRadius: appTheme.radius.sm,
+    },
+    unlockedText: {
+      color: appTheme.colors.accentText,
+      fontSize: appTheme.font.sizeXs,
+      fontWeight: appTheme.font.weightBold,
+    },
+  });

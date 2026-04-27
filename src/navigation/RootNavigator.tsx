@@ -15,6 +15,7 @@ import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
 import { AddExerciseScreen } from '../screens/workouts/AddExerciseScreen';
 import { CreateRoutineScreen } from '../screens/routines/CreateRoutineScreen';
 import { SelectExerciseForRoutineScreen } from '../screens/routines/SelectExerciseForRoutineScreen';
+import { useTheme } from '../context/ThemeContext';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 import { Exercise } from '../types';
@@ -43,20 +44,21 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const stackScreenOptions = {
-  headerStyle: { backgroundColor: theme.colors.bg },
-  headerTintColor: theme.colors.text,
-  headerTitleStyle: { fontWeight: theme.font.weightBold as 'bold' },
-  contentStyle: { backgroundColor: theme.colors.bg },
-} as const;
-
 export default function RootNavigator() {
+  const { theme: appTheme } = useTheme();
   const { isLoggedIn } = useAuth();
+
+  const stackScreenOptions = {
+    headerStyle: { backgroundColor: appTheme.colors.bg },
+    headerTintColor: appTheme.colors.text,
+    headerTitleStyle: { fontWeight: appTheme.font.weightBold as 'bold' },
+    contentStyle: { backgroundColor: appTheme.colors.bg },
+  } as const;
 
   if (isLoggedIn === null) {
     return (
-      <View style={styles.splash}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={[styles.splash, { backgroundColor: appTheme.colors.bg }]}>
+        <ActivityIndicator size="large" color={appTheme.colors.accent} />
       </View>
     );
   }
@@ -99,7 +101,6 @@ export default function RootNavigator() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },

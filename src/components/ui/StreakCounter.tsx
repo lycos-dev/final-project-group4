@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useWorkout } from '../../context/WorkoutContext';
 
@@ -13,6 +14,8 @@ export const StreakCounter = ({
   currentMonth = new Date().getMonth(),
   currentYear = new Date().getFullYear(),
 }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const { getCompletedDatesThisMonth, completedWorkouts } = useWorkout();
   const workoutDays = useMemo(() => getCompletedDatesThisMonth(), [completedWorkouts]);
   const currentDay = new Date().getDate();
@@ -90,7 +93,7 @@ export const StreakCounter = ({
                     <MaterialCommunityIcons
                       name="check"
                       size={12}
-                      color={theme.colors.accentText}
+                      color={appTheme.colors.accentText}
                       style={styles.checkmark}
                     />
                   )}
@@ -110,79 +113,80 @@ export const StreakCounter = ({
   );
 };
 
-const styles = StyleSheet.create({
-  // Card variant styles
-  cardContainer: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-  },
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    // Card variant styles
+    cardContainer: {
+      backgroundColor: appTheme.colors.surface,
+      borderRadius: appTheme.radius.lg,
+      borderWidth: 1,
+      borderColor: appTheme.colors.border,
+      padding: appTheme.spacing.lg,
+    },
 
-  // Calendar styles
-  calendarContainer: {
-    width: '100%',
-  },
-  monthTitle: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  daysHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-  },
-  dayHeader: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
-    fontWeight: theme.font.weightBold,
-    flex: 1,
-    textAlign: 'center',
-  },
-  weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.xs,
-  },
-  dayCell: {
-    width: '14.28%',
-    aspectRatio: 1,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderRadius: theme.radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  dayCellCompleted: {
-    backgroundColor: theme.colors.success,
-    borderColor: theme.colors.success,
-  },
-  dayCellCurrent: {
-    borderColor: theme.colors.accent,
-    borderWidth: 2,
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  dayNumber: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightMedium,
-  },
-  dayNumberCompleted: {
-    color: theme.colors.accentText,
-    fontWeight: theme.font.weightBold,
-  },
-  checkmark: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-  },
-});
+    // Calendar styles
+    calendarContainer: {
+      width: '100%',
+    },
+    monthTitle: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightBold,
+      marginBottom: appTheme.spacing.md,
+      textAlign: 'center',
+    },
+    daysHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: appTheme.spacing.sm,
+    },
+    dayHeader: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+      fontWeight: appTheme.font.weightBold,
+      flex: 1,
+      textAlign: 'center',
+    },
+    weekRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: appTheme.spacing.xs,
+    },
+    dayCell: {
+      width: '14.28%',
+      aspectRatio: 1,
+      backgroundColor: appTheme.colors.surfaceAlt,
+      borderRadius: appTheme.radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: appTheme.colors.border,
+    },
+    dayCellCompleted: {
+      backgroundColor: appTheme.colors.success,
+      borderColor: appTheme.colors.success,
+    },
+    dayCellCurrent: {
+      borderColor: appTheme.colors.accent,
+      borderWidth: 2,
+      shadowColor: appTheme.colors.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    dayNumber: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+      fontWeight: appTheme.font.weightMedium,
+    },
+    dayNumberCompleted: {
+      color: appTheme.colors.accentText,
+      fontWeight: appTheme.font.weightBold,
+    },
+    checkmark: {
+      position: 'absolute',
+      bottom: 2,
+      right: 2,
+    },
+  });

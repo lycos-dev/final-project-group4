@@ -17,8 +17,9 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Chip } from '../../components/ui/Chip';
 import { useProfile } from '../../context/ProfileContext';
+import { useTheme } from '../../context/ThemeContext';
 import { Goal, GoalType } from '../../types';
-import { theme } from '../../theme/theme';
+import { Theme } from '../../theme/theme';
 
 const GOAL_TYPES: GoalType[] = ['Weight Loss', 'Weight Gain'];
 
@@ -42,6 +43,9 @@ const formatDate = (isoDate: string) => {
 };
 
 export const GoalsScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
+  const theme = appTheme;
   const { goals, createGoal, updateGoalProgress, deleteGoal } = useProfile();
 
   const [goalName, setGoalName] = useState('');
@@ -411,7 +415,10 @@ export const GoalsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (appTheme: Theme) => {
+  const theme = appTheme;
+
+  return StyleSheet.create({
   header: { marginBottom: theme.spacing.lg },
   title: {
     color: theme.colors.text,
@@ -503,7 +510,7 @@ const styles = StyleSheet.create({
   goalCard: { marginBottom: theme.spacing.md },
   goalCardCompleted: {
     borderColor: theme.colors.accent,
-    backgroundColor: '#1f2a0b',
+    backgroundColor: theme.colors.surfaceAlt,
   },
   goalTopRow: {
     flexDirection: 'row',
@@ -543,7 +550,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 10,
     borderRadius: theme.radius.pill,
-    backgroundColor: '#2b2b33',
+    backgroundColor: theme.colors.border,
     overflow: 'hidden',
     marginBottom: theme.spacing.md,
   },
@@ -621,4 +628,5 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: theme.spacing.sm,
   },
-});
+  });
+};

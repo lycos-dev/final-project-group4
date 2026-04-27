@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from './Card';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface ExerciseDetail {
@@ -28,6 +29,9 @@ export const WorkoutCompletionCard = ({
   exercises,
   timestamp,
 }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
+
   return (
     <Card>
       {/* Header with avatar and metadata */}
@@ -50,7 +54,7 @@ export const WorkoutCompletionCard = ({
         <MaterialCommunityIcons
           name="dots-vertical"
           size={20}
-          color={theme.colors.muted}
+          color={appTheme.colors.muted}
         />
       </View>
 
@@ -87,7 +91,7 @@ export const WorkoutCompletionCard = ({
                 <MaterialCommunityIcons
                   name="dumbbell"
                   size={32}
-                  color={theme.colors.muted}
+                  color={appTheme.colors.muted}
                 />
               </View>
             )}
@@ -107,112 +111,113 @@ export const WorkoutCompletionCard = ({
   );
 };
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: theme.spacing.sm,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: theme.colors.accentText,
-    fontSize: theme.font.sizeXl,
-    fontWeight: theme.font.weightBlack,
-  },
-  username: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  timestamp: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
-  },
-  privacy: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
-  },
-  routineTitle: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeDisplay,
-    fontWeight: theme.font.weightBlack,
-    marginBottom: theme.spacing.md,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: theme.spacing.xl,
-    marginBottom: theme.spacing.md,
-  },
-  statColumn: {
-    gap: theme.spacing.xs,
-  },
-  statLabel: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-  },
-  statValue: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBlack,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: theme.spacing.md,
-  },
-  exercisesContainer: {
-    gap: theme.spacing.md,
-  },
-  exerciseRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    alignItems: 'center',
-  },
-  exerciseImage: {
-    width: 60,
-    height: 60,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  exercisePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exerciseInfo: {
-    flex: 1,
-    gap: theme.spacing.xs,
-  },
-  exerciseName: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  exerciseReps: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-  },
-});
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: appTheme.spacing.md,
+    },
+    userInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      gap: appTheme.spacing.sm,
+    },
+    avatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: appTheme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      color: appTheme.colors.accentText,
+      fontSize: appTheme.font.sizeXl,
+      fontWeight: appTheme.font.weightBlack,
+    },
+    username: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightBold,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
+    timestamp: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+    },
+    privacy: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+    },
+    routineTitle: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeDisplay,
+      fontWeight: appTheme.font.weightBlack,
+      marginBottom: appTheme.spacing.md,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      gap: appTheme.spacing.xl,
+      marginBottom: appTheme.spacing.md,
+    },
+    statColumn: {
+      gap: appTheme.spacing.xs,
+    },
+    statLabel: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+    },
+    statValue: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeLg,
+      fontWeight: appTheme.font.weightBlack,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: appTheme.colors.border,
+      marginVertical: appTheme.spacing.md,
+    },
+    exercisesContainer: {
+      gap: appTheme.spacing.md,
+    },
+    exerciseRow: {
+      flexDirection: 'row',
+      gap: appTheme.spacing.md,
+      alignItems: 'center',
+    },
+    exerciseImage: {
+      width: 60,
+      height: 60,
+      borderRadius: appTheme.radius.md,
+      backgroundColor: appTheme.colors.surfaceAlt,
+    },
+    exercisePlaceholder: {
+      width: 60,
+      height: 60,
+      borderRadius: appTheme.radius.md,
+      backgroundColor: appTheme.colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    exerciseInfo: {
+      flex: 1,
+      gap: appTheme.spacing.xs,
+    },
+    exerciseName: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightMedium,
+    },
+    exerciseReps: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+    },
+  });

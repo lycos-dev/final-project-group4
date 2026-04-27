@@ -3,17 +3,34 @@ import { View, Text, StyleSheet, Switch } from 'react-native';
 import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useProfile } from '../../context/ProfileContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { theme } from '../../theme/theme';
 
 export const SettingsScreen = () => {
   const { settings, updateSettings } = useProfile();
   const { logout } = useAuth();
+  const { isDark, setMode, theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
 
   return (
     <Screen scroll>
       <Text style={styles.section}>Preferences</Text>
+
+      <Card style={styles.card}>
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Appearance</Text>
+            <Text style={styles.sub}>{isDark ? 'Dark mode' : 'Light mode'}</Text>
+          </View>
+          <ThemeToggle
+            value={isDark}
+            onValueChange={(value) => setMode(value ? 'dark' : 'light')}
+          />
+        </View>
+      </Card>
 
       <Card style={styles.card}>
         <View style={styles.row}>
@@ -24,7 +41,7 @@ export const SettingsScreen = () => {
           <Switch
             value={settings.units === 'imperial'}
             onValueChange={(v) => updateSettings({ units: v ? 'imperial' : 'metric' })}
-            trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+            trackColor={{ false: appTheme.colors.border, true: appTheme.colors.accent }}
             thumbColor="#fff"
           />
         </View>
@@ -39,7 +56,7 @@ export const SettingsScreen = () => {
           <Switch
             value={settings.notifications}
             onValueChange={(v) => updateSettings({ notifications: v })}
-            trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+            trackColor={{ false: appTheme.colors.border, true: appTheme.colors.accent }}
             thumbColor="#fff"
           />
         </View>
@@ -62,11 +79,20 @@ export const SettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  section: { color: theme.colors.muted, fontSize: theme.font.sizeXs, fontWeight: theme.font.weightBold, textTransform: 'uppercase', letterSpacing: 1, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
-  card: { marginBottom: theme.spacing.md },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: theme.spacing.xs },
-  label: { color: theme.colors.text, fontSize: theme.font.sizeMd, fontWeight: theme.font.weightMedium },
-  sub: { color: theme.colors.muted, fontSize: theme.font.sizeSm, marginTop: 2 },
-});
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    section: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+      fontWeight: appTheme.font.weightBold,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: appTheme.spacing.md,
+      marginBottom: appTheme.spacing.sm,
+    },
+    card: { marginBottom: appTheme.spacing.md },
+    row: { flexDirection: 'row', alignItems: 'center' },
+    aboutRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: appTheme.spacing.xs },
+    label: { color: appTheme.colors.text, fontSize: appTheme.font.sizeMd, fontWeight: appTheme.font.weightMedium },
+    sub: { color: appTheme.colors.muted, fontSize: appTheme.font.sizeSm, marginTop: 2 },
+  });

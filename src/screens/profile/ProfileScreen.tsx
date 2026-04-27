@@ -5,10 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +15,7 @@ import { Button } from '../../components/ui/Button';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { StatCard } from '../../components/profile/StatCard';
 import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
@@ -24,11 +23,13 @@ import { RootStackParamList } from '../../navigation/RootNavigator';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export const ProfileScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const { profile, settings } = useProfile();
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-  const bottomTabBarHeight = useBottomTabBarHeight();
   const isImperial = settings.units === 'imperial';
 
   // ── Scroll to top every time this tab gains focus ───────────────────
@@ -51,7 +52,7 @@ export const ProfileScreen = () => {
 
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
 
-  const bottomPadding = bottomTabBarHeight + theme.spacing.lg;
+  const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
 
   return (
     <ScrollView
@@ -149,75 +150,78 @@ export const ProfileScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  // ScrollView itself fills the screen; background must be set here so
-  // the area behind the status bar matches the app background.
-  root: {
-    flex: 1,
-  },
-  // contentContainerStyle — paddingTop and paddingBottom are injected
-  // dynamically from insets so they adapt to every device form factor.
-  scroll: {
-    flexGrow: 1,
-  },
+const createStyles = (appTheme: typeof theme) => {
+  const theme = appTheme;
+  return StyleSheet.create({
+    // ScrollView itself fills the screen; background must be set here so
+    // the area behind the status bar matches the app background.
+    root: {
+      flex: 1,
+    },
+    // contentContainerStyle — paddingTop and paddingBottom are injected
+    // dynamically from insets so they adapt to every device form factor.
+    scroll: {
+      flexGrow: 1,
+    },
 
-  statsRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  section: {
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  sectionLabel: {
-    color: theme.colors.muted,
-    fontSize: 11,
-    fontWeight: theme.font.weightBold,
-    letterSpacing: 1.2,
-  },
-  goalText: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeMd,
-    lineHeight: 22,
-  },
+    statsRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    section: {
+      marginTop: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    sectionLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
+      fontWeight: theme.font.weightBold,
+      letterSpacing: 1.2,
+    },
+    goalText: {
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeMd,
+      lineHeight: 22,
+    },
 
-  /* ── Goals Card ────────────────────────────────────────────────────── */
-  goalsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(198, 255, 61, 0.2)',
-    gap: theme.spacing.md,
-  },
-  goalsIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.radius.md,
-    backgroundColor: 'rgba(198, 255, 61, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  goalsText: { flex: 1 },
-  goalsTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  goalsSub: {
-    fontSize: 12,
-    color: theme.colors.muted,
-  },
+    /* ── Goals Card ────────────────────────────────────────────────────── */
+    goalsCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: `${theme.colors.accent}33`,
+      gap: theme.spacing.md,
+    },
+    goalsIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radius.md,
+      backgroundColor: `${theme.colors.accent}1A`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    goalsText: { flex: 1 },
+    goalsTitle: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      marginBottom: 2,
+    },
+    goalsSub: {
+      fontSize: 12,
+      color: theme.colors.muted,
+    },
 
-  /* ── Bottom Actions ────────────────────────────────────────────────── */
-  actions: {
-    marginTop: theme.spacing.xxl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-});
+    /* ── Bottom Actions ────────────────────────────────────────────────── */
+    actions: {
+      marginTop: theme.spacing.xxl,
+      paddingHorizontal: theme.spacing.lg,
+    },
+  });
+};
