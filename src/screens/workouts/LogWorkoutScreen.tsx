@@ -196,7 +196,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     exercises,
     setExercises,
     addExercises,
-    clearWorkout,
     discardWorkout,
     startTime,
     setStartTime,
@@ -380,30 +379,59 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   // ── Navigation actions ────────────────────────────────────────────────────
   const handleAddExercise = () => navigation.navigate("AddExercise");
 
-  const handleFinish = () => {
-    if (settings.showFinishSummary && exercises.length > 0) {
-      const completedCount = exercises.reduce(
-        (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
-        0,
-      );
-      Alert.alert(
-        "Finish Workout? 🎉",
-        `${completedCount} set${completedCount !== 1 ? "s" : ""} completed · ${formatDuration(elapsed)}`,
-        [
-          { text: "Keep going", style: "cancel" },
-          {
-            text: "Finish",
-            onPress: () => {
-              clearWorkout(route.params?.routineName);
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    } else {
-      clearWorkout(route.params?.routineName);
-      navigation.goBack();
+  const validateBeforeFinish = () => {
+    if (exercises.length === 0) {
+      return "Add at least one exercise before finishing.";
     }
+
+    const completedCount = exercises.reduce(
+      (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+      0,
+    );
+
+    if (completedCount === 0) {
+      return "Complete at least one set before finishing.";
+    }
+
+    const hasInvalidCompletedSet = exercises.some((ex) =>
+      ex.sets.some((set) => {
+        if (!set.completed) return false;
+        const reps = Number(set.reps);
+        const weight = Number(set.weight);
+        return !Number.isFinite(reps) || reps <= 0 || !Number.isFinite(weight) || weight < 0;
+      }),
+    );
+
+    if (hasInvalidCompletedSet) {
+      return "Completed sets must have valid reps (> 0) and weight (>= 0).";
+    }
+
+    return null;
+  };
+
+  const proceedToSaveWorkout = () => {
+    const completedCount = exercises.reduce(
+      (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+      0,
+    );
+    const routineName = route.params?.routineName?.trim() || "Custom Workout";
+    navigation.navigate("SaveWorkout", {
+      routineName,
+      durationSeconds: elapsed,
+      totalVolumeKg: totalVolume,
+      totalSets: completedCount,
+      completedAt: Date.now(),
+    });
+  };
+
+  const handleFinish = () => {
+    const validationError = validateBeforeFinish();
+    if (validationError) {
+      Alert.alert("Workout not ready", validationError);
+      return;
+    }
+
+    proceedToSaveWorkout();
   };
 
   const doDiscard = () => {

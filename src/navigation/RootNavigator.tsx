@@ -13,6 +13,7 @@ import { SettingsScreen } from '../screens/profile/SettingsScreen';
 import { GoalsScreen } from '../screens/goals/GoalsScreen';
 import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
 import { AddExerciseScreen } from '../screens/workouts/AddExerciseScreen';
+import { SaveWorkoutScreen } from '../screens/workouts/SaveWorkoutScreen';
 import { CreateRoutineScreen } from '../screens/routines/CreateRoutineScreen';
 import { SelectExerciseForRoutineScreen } from '../screens/routines/SelectExerciseForRoutineScreen';
 import { useTheme } from '../context/ThemeContext';
@@ -37,6 +38,13 @@ export type RootStackParamList = {
   Settings: undefined;
   Goals: undefined;
   LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string };
+  SaveWorkout: {
+    routineName?: string;
+    durationSeconds: number;
+    totalVolumeKg: number;
+    totalSets: number;
+    completedAt: number;
+  };
   AddExercise: undefined;
   CreateRoutine: { routineId?: string; targetFolderId?: string };
   SelectExerciseForRoutine: undefined;
@@ -85,6 +93,7 @@ export default function RootNavigator() {
           <Stack.Screen name="EditProfile"     component={EditProfileScreen}            options={{ presentation: 'modal', title: 'Edit Profile' }} />
           <Stack.Screen name="Settings"        component={SettingsScreen}               options={{ title: 'Settings' }} />
           <Stack.Screen name="LogWorkout"      component={LogWorkoutScreen}             options={{ headerShown: false }} />
+          <Stack.Screen name="SaveWorkout"     component={SaveWorkoutScreen}            options={{ headerShown: false }} />
           <Stack.Screen name="AddExercise"     component={AddExerciseScreen}            options={{ headerShown: false }} />
           <Stack.Screen name="CreateRoutine"   component={CreateRoutineScreen}          options={{ presentation: 'modal' }} />
           <Stack.Screen

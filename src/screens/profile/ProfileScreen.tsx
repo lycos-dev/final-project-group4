@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   Text,
   View,
@@ -18,6 +18,7 @@ import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -27,6 +28,7 @@ export const ProfileScreen = () => {
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const { profile, settings } = useProfile();
+  const { completedWorkouts } = useWorkout();
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -51,6 +53,10 @@ export const ProfileScreen = () => {
   const weightUnit = isImperial ? 'lb' : 'kg';
 
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
+  const recentCompletedWorkouts = useMemo(
+    () => [...completedWorkouts].sort((a, b) => b.completedAt - a.completedAt).slice(0, 5),
+    [completedWorkouts],
+  );
 
   const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
 
@@ -121,14 +127,27 @@ export const ProfileScreen = () => {
         />
       </View>
 
-      {/* ── Workout Activity ─────────────────────────────────────────── */}
+      {/* ── Completed Workouts ──────────────────────────────────────── */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>WORKOUT ACTIVITY</Text>
-        <EmptyPlaceholder
-          icon="stats-chart-outline"
-          title="No workouts logged"
-          message={'Your weekly activity chart will appear\nhere once you log a session.'}
-        />
+        <Text style={styles.sectionLabel}>COMPLETED WORKOUTS</Text>
+        {recentCompletedWorkouts.length === 0 ? (
+          <EmptyPlaceholder
+            icon="stats-chart-outline"
+            title="No workouts logged"
+            message={'Saved workouts will appear here\nonce you complete a session.'}
+          />
+        ) : (
+          <View style={styles.completedList}>
+            {recentCompletedWorkouts.map((workout) => (
+              <Card key={workout.id}>
+                <Text style={styles.completedName}>{workout.routineName}</Text>
+                <Text style={styles.completedMeta}>
+                  {new Date(workout.completedAt).toLocaleDateString()} · {workout.durationMinutes} min · {workout.totalSets} sets
+                </Text>
+              </Card>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* ── Actions ──────────────────────────────────────────────────── */}
@@ -216,6 +235,20 @@ const createStyles = (appTheme: typeof theme) => {
     goalsSub: {
       fontSize: 12,
       color: theme.colors.muted,
+    },
+
+    completedList: {
+      gap: theme.spacing.sm,
+    },
+    completedName: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      marginBottom: 4,
+    },
+    completedMeta: {
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeSm,
     },
 
     /* ── Bottom Actions ────────────────────────────────────────────────── */

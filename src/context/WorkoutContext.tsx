@@ -35,6 +35,20 @@ export interface CompletedWorkout {
   durationSeconds: number;
   durationMinutes: number;
   totalVolumeKg: number;
+  totalSets: number;
+  description?: string;
+  photoUri?: string;
+}
+
+export interface SaveWorkoutPayload {
+  routineName: string;
+  completedAt: number;
+  durationSeconds: number;
+  durationMinutes: number;
+  totalVolumeKg: number;
+  totalSets: number;
+  description?: string;
+  photoUri?: string;
 }
 
 export interface WorkoutSettings {
@@ -52,6 +66,7 @@ interface WorkoutContextType {
   exercises: LogExercise[];
   setExercises: (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => void;
   addExercises: (exercisesToAdd: Exercise[]) => void;
+  saveWorkout: (payload: SaveWorkoutPayload) => void;
   /** Save the workout to history then reset all state. */
   clearWorkout: (routineName?: string) => void;
   /** Reset all state WITHOUT saving to history (discard). */
@@ -228,6 +243,9 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     return totalVolume;
   };
 
+  const calculateCompletedSets = (exs: LogExercise[]) =>
+    exs.reduce((acc, ex) => acc + ex.sets.filter((set) => set.completed).length, 0);
+
   // ── private reset (shared by clearWorkout + discardWorkout) ──────────────
 
   const _resetState = () => {
@@ -251,9 +269,38 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         durationSeconds: elapsed,
         durationMinutes: Math.round(elapsed / 60),
         totalVolumeKg: calculateStats(exercises),
+        totalSets: calculateCompletedSets(exercises),
       };
       setCompletedWorkouts((prev) => [...prev, record]);
     }
+    _resetState();
+  };
+
+  const saveWorkout = (payload: SaveWorkoutPayload) => {
+    if (exercises.length === 0) {
+      _resetState();
+      return;
+    }
+
+    const safeDurationSeconds = Math.max(0, Math.floor(payload.durationSeconds));
+    const safeDurationMinutes = Math.max(0, Math.floor(payload.durationMinutes));
+    const safeVolume = Math.max(0, payload.totalVolumeKg);
+    const safeSets = Math.max(0, Math.floor(payload.totalSets));
+
+    const record: CompletedWorkout = {
+      id: `${Date.now()}-${Math.random()}`,
+      routineName: payload.routineName.trim() || 'Custom Workout',
+      exercises,
+      completedAt: payload.completedAt,
+      durationSeconds: safeDurationSeconds,
+      durationMinutes: safeDurationMinutes,
+      totalVolumeKg: safeVolume,
+      totalSets: safeSets,
+      description: payload.description?.trim() || undefined,
+      photoUri: payload.photoUri,
+    };
+
+    setCompletedWorkouts((prev) => [...prev, record]);
     _resetState();
   };
 
@@ -301,6 +348,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         exercises,
         setExercises,
         addExercises,
+        saveWorkout,
         clearWorkout,
         discardWorkout,
         completedWorkouts,

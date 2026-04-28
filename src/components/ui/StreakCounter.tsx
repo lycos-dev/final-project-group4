@@ -16,8 +16,26 @@ export const StreakCounter = ({
 }: Props) => {
   const { theme: appTheme } = useTheme();
   const styles = createStyles(appTheme);
-  const { getCompletedDatesThisMonth, completedWorkouts } = useWorkout();
-  const workoutDays = useMemo(() => getCompletedDatesThisMonth(), [completedWorkouts]);
+  const { completedWorkouts } = useWorkout();
+  const workoutsByDay = useMemo(() => {
+    const byDay: Record<number, string[]> = {};
+    completedWorkouts.forEach((workout) => {
+      const completedDate = new Date(workout.completedAt);
+      if (
+        completedDate.getMonth() === currentMonth &&
+        completedDate.getFullYear() === currentYear
+      ) {
+        const day = completedDate.getDate();
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(workout.routineName);
+      }
+    });
+    return byDay;
+  }, [completedWorkouts, currentMonth, currentYear]);
+  const workoutDays = useMemo(
+    () => Object.keys(workoutsByDay).map((d) => Number(d)),
+    [workoutsByDay],
+  );
   const currentDay = new Date().getDate();
 
   const monthData = useMemo(() => {
@@ -70,13 +88,22 @@ export const StreakCounter = ({
       {/* Calendar grid */}
       {weeks.map((week, weekIndex) => (
         <View key={weekIndex} style={styles.weekRow}>
-          {week.map((day, dayIndex) => (
+          {week.map((day, dayIndex) => {
+            const dayWorkouts = day ? workoutsByDay[day] ?? [] : [];
+            const firstWorkout = dayWorkouts[0];
+            const workoutTag = firstWorkout
+              ? firstWorkout.length > 8
+                ? `${firstWorkout.slice(0, 8)}…`
+                : firstWorkout
+              : null;
+
+            return (
             <View
               key={`${weekIndex}-${dayIndex}`}
               style={[
                 styles.dayCell,
-                day && workoutDays.includes(day) && styles.dayCellCompleted,
-                day && day === currentDay && styles.dayCellCurrent,
+                day !== null && workoutDays.includes(day) ? styles.dayCellCompleted : undefined,
+                day !== null && day === currentDay ? styles.dayCellCurrent : undefined,
               ]}
             >
               {day ? (
@@ -97,10 +124,16 @@ export const StreakCounter = ({
                       style={styles.checkmark}
                     />
                   )}
+                  {workoutTag ? (
+                    <Text style={styles.workoutTag} numberOfLines={1}>
+                      {dayWorkouts.length > 1 ? `${workoutTag} +${dayWorkouts.length - 1}` : workoutTag}
+                    </Text>
+                  ) : null}
                 </>
               ) : null}
             </View>
-          ))}
+            );
+          })}
         </View>
       ))}
     </View>
@@ -159,6 +192,7 @@ const createStyles = (appTheme: typeof theme) =>
       borderRadius: appTheme.radius.sm,
       alignItems: 'center',
       justifyContent: 'center',
+      paddingHorizontal: 2,
       borderWidth: 1,
       borderColor: appTheme.colors.border,
     },
@@ -188,5 +222,11 @@ const createStyles = (appTheme: typeof theme) =>
       position: 'absolute',
       bottom: 2,
       right: 2,
+    },
+    workoutTag: {
+      color: appTheme.colors.accentText,
+      fontSize: 8,
+      fontWeight: appTheme.font.weightBold,
+      maxWidth: '90%',
     },
   });
