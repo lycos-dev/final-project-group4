@@ -117,6 +117,7 @@ const formatRestLabel = (seconds: number): string => {
 /* ─── WheelPicker ───────────────────────────────────────────────────────────────── */
 const ITEM_HEIGHT = 48;
 const VISIBLE     = 5;
+const WHEEL_PAD   = Math.floor(VISIBLE / 2);
 
 const WheelPicker = ({
   value,
@@ -132,24 +133,18 @@ const WheelPicker = ({
   pickStyles: ReturnType<typeof createPickStyles>;
 }) => {
   const scrollRef = useRef<ScrollView>(null);
-  // Use a ref so the latest committed index is always readable synchronously
-  const committedRef = useRef(value);
 
   useEffect(() => {
-    committedRef.current = value;
-    const t = setTimeout(
-      () => scrollRef.current?.scrollTo({ y: value * ITEM_HEIGHT, animated: false }),
-      80,
-    );
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: value * ITEM_HEIGHT, animated: false });
+    }, 60);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [value]);
 
   const commit = (y: number) => {
-    const i = Math.round(y / ITEM_HEIGHT);
+    const i = Math.round(y / ITEM_HEIGHT) - WHEEL_PAD;
     const clamped = Math.max(0, Math.min(count - 1, i));
-    committedRef.current = clamped;
-    onChange(clamped);
+    if (clamped !== value) onChange(clamped);
   };
 
   return (
@@ -160,22 +155,22 @@ const WheelPicker = ({
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
-        onScroll={(e) => commit(e.nativeEvent.contentOffset.y)}
-        scrollEventThrottle={16}
+        directionalLockEnabled
+        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * WHEEL_PAD }}
+        onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
         onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
       >
-        {Array.from({ length: count }).map((_, i) => {
-          const isActive = i === value;
+        {Array.from({ length: count }).map((_, item) => {
+          const isActive = item === value;
           return (
-            <View key={i} style={pickStyles.row}>
+            <View key={`${suffix}-${item}`} style={pickStyles.row}>
               <Text
                 style={[
                   pickStyles.numText,
                   isActive ? pickStyles.numTextActive : pickStyles.numTextInactive,
                 ]}
               >
-                {String(i).padStart(2, "0")}
+                {String(item).padStart(2, "0")}
               </Text>
               <Text
                 style={[
@@ -195,6 +190,13 @@ const WheelPicker = ({
 
 const createPickStyles = (theme: Theme) =>
   StyleSheet.create({
+    column: {
+      flex: 1,
+      minWidth: 120,
+      maxWidth: 180,
+      position: "relative",
+      height: ITEM_HEIGHT * VISIBLE,
+    },
     selectionBand: {
       position: "absolute",
       top: ITEM_HEIGHT * 2,
@@ -206,9 +208,44 @@ const createPickStyles = (theme: Theme) =>
       borderColor: theme.colors.accent,
       backgroundColor: "rgba(198, 255, 61, 0.06)",
     },
-    row: { height: ITEM_HEIGHT, alignItems: "center", justifyContent: "center" },
-    rowText: { color: theme.colors.muted, fontSize: 16, fontWeight: "600" },
-    rowTextActive: { color: theme.colors.accent, fontSize: 22, fontWeight: "800" },
+    row: {
+      height: ITEM_HEIGHT,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+    },
+    numText: {
+      color: theme.colors.muted,
+      fontSize: 18,
+      fontWeight: "700",
+      minWidth: 28,
+      textAlign: "right",
+    },
+    numTextActive: {
+      color: theme.colors.text,
+      fontSize: 22,
+      fontWeight: "900",
+    },
+    numTextInactive: {
+      color: theme.colors.muted,
+      opacity: 0.85,
+    },
+    suffixText: {
+      color: theme.colors.muted,
+      fontSize: 14,
+      fontWeight: "600",
+      minWidth: 28,
+    },
+    suffixTextActive: {
+      color: theme.colors.accent,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    suffixTextInactive: {
+      color: theme.colors.muted,
+      opacity: 0.9,
+    },
   });
 
 /* ─── Main screen ──────────────────────────────────────────────────────────── */
@@ -878,13 +915,38 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         onRequestClose={() => setDurationOpen(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
-            <View style={styles.wheelRow}>
-              <WheelPicker value={draftHours} onChange={setDraftHours} count={24} suffix="hr" pickStyles={pickStyles} />
-              <WheelPicker value={draftMinutes} onChange={setDraftMinutes} count={60} suffix="min" pickStyles={pickStyles} />
+            <View style={styles.durationValuePill}>
+              <Text style={styles.durationValueText}>
+                {String(draftHours).padStart(2, "0")}h {String(draftMinutes).padStart(2, "0")}m
+              </Text>
+            </View>
+            <View style={styles.wheelCard}>
+              <View style={styles.wheelRow}>
+                <WheelPicker
+                  value={draftHours}
+                  onChange={(value) => {
+                    draftHoursRef.current = value;
+                    setDraftHours(value);
+                  }}
+                  count={24}
+                  suffix="hr"
+                  pickStyles={pickStyles}
+                />
+                <WheelPicker
+                  value={draftMinutes}
+                  onChange={(value) => {
+                    draftMinsRef.current = value;
+                    setDraftMinutes(value);
+                  }}
+                  count={60}
+                  suffix="min"
+                  pickStyles={pickStyles}
+                />
+              </View>
             </View>
 
             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
@@ -1087,9 +1149,18 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         visible={settingsOpen}
         transparent
         animationType="slide"
-        onRequestClose={() => setSettingsOpen(false)}
+        onRequestClose={() => {
+          setRestPickerOpen(false);
+          setSettingsOpen(false);
+        }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSettingsOpen(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setRestPickerOpen(false);
+            setSettingsOpen(false);
+          }}
+        >
           <Pressable style={[styles.modalContent, { maxHeight: "90%" }]} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Workout Settings</Text>
@@ -1111,7 +1182,14 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               </View>
 
               {/* Default rest timer */}
-              <TouchableOpacity style={styles.settingRow} onPress={() => setRestPickerOpen(true)}>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => {
+                  // Avoid stacked transparent modals that can trap touches on Android.
+                  setSettingsOpen(false);
+                  setTimeout(() => setRestPickerOpen(true), 120);
+                }}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.settingTitle}>Default rest timer</Text>
                   <Text style={styles.settingHint}>Applied to new exercises you add</Text>
@@ -1124,72 +1202,87 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
               {/* Auto-start rest timer */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Auto-start rest timer</Text>
                   <Text style={styles.settingHint}>Begin countdown when a set is completed</Text>
                 </View>
-                <Switch
-                  value={settings.autoStartRestTimer}
-                  onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.autoStartRestTimer}
+                    onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.autoStartRestTimer ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Count warm-ups in volume */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Count warm-ups in volume</Text>
                   <Text style={styles.settingHint}>Include W sets in total volume</Text>
                 </View>
-                <Switch
-                  value={settings.countWarmupInVolume}
-                  onValueChange={(v) => updateSettings({ countWarmupInVolume: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.countWarmupInVolume}
+                    onValueChange={(v) => updateSettings({ countWarmupInVolume: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.countWarmupInVolume ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Vibrate on set complete */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Vibrate on set complete</Text>
                   <Text style={styles.settingHint}>Short haptic when you tick a set</Text>
                 </View>
-                <Switch
-                  value={settings.vibrateOnSetComplete}
-                  onValueChange={(v) => updateSettings({ vibrateOnSetComplete: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.vibrateOnSetComplete}
+                    onValueChange={(v) => updateSettings({ vibrateOnSetComplete: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.vibrateOnSetComplete ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Show finish summary */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Show finish summary</Text>
                   <Text style={styles.settingHint}>Confirm dialog with stats when finishing</Text>
                 </View>
-                <Switch
-                  value={settings.showFinishSummary}
-                  onValueChange={(v) => updateSettings({ showFinishSummary: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.showFinishSummary}
+                    onValueChange={(v) => updateSettings({ showFinishSummary: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.showFinishSummary ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Confirm before discard */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Confirm before discard</Text>
                   <Text style={styles.settingHint}>Ask before clearing the workout</Text>
                 </View>
-                <Switch
-                  value={settings.confirmBeforeDiscard}
-                  onValueChange={(v) => updateSettings({ confirmBeforeDiscard: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.confirmBeforeDiscard}
+                    onValueChange={(v) => updateSettings({ confirmBeforeDiscard: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.confirmBeforeDiscard ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               <Button
@@ -1615,6 +1708,25 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 
   /* Duration modal */
+  durationModalContent: {
+    maxHeight: "88%",
+  },
+  durationValuePill: {
+    alignSelf: "center",
+    marginBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 999,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  durationValueText: {
+    color: theme.colors.accent,
+    fontWeight: theme.font.weightBold,
+    fontSize: theme.font.sizeSm,
+    letterSpacing: 0.4,
+  },
   fieldLabel: {
     color: theme.colors.muted,
     fontSize: 11,
@@ -1622,7 +1734,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: theme.spacing.sm,
   },
-  wheelRow: { flexDirection: "row", gap: theme.spacing.md },
+  wheelCard: {
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  wheelRow: { flexDirection: "row", gap: theme.spacing.md, justifyContent: "center" },
   startRow: { flexDirection: "row", gap: theme.spacing.sm },
   startBtn: {
     flex: 1,
@@ -1711,10 +1831,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+  },
+  settingMain: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: theme.spacing.sm,
+  },
+  settingSwitchWrap: {
+    marginLeft: theme.spacing.sm,
+    flexShrink: 0,
+    alignSelf: "center",
+    minWidth: 56,
+    alignItems: "flex-end",
   },
   settingTitle: {
     color: theme.colors.text,
