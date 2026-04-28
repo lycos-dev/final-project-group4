@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { Profile } from '../../types';
 
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export const ProfileHeader = ({ profile, subtitle }: Props) => {
+  const { theme: appTheme, isDark } = useTheme();
+  const styles = createStyles(appTheme);
   const initials = profile.name
     .split(' ')
     .map((p) => p[0] ?? '')
@@ -45,7 +48,7 @@ export const ProfileHeader = ({ profile, subtitle }: Props) => {
       {/* Outer glow ring */}
       <View style={styles.ringOuter}>
         <LinearGradient
-          colors={[theme.colors.accent, '#7EE800', '#3DD68C']}
+          colors={[appTheme.colors.accent, isDark ? '#7EE800' : '#6BCB7E', appTheme.colors.success]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.ring}
@@ -54,7 +57,7 @@ export const ProfileHeader = ({ profile, subtitle }: Props) => {
           <View style={styles.ringCutout}>
             {/* Avatar background */}
             <LinearGradient
-              colors={['#1E2510', theme.colors.surfaceAlt]}
+              colors={isDark ? ['#1E2510', appTheme.colors.surfaceAlt] : ['#DFF6E6', appTheme.colors.surfaceAlt]}
               style={styles.avatarBg}
             >
               <Text style={styles.initials}>{initials}</Text>
@@ -66,7 +69,7 @@ export const ProfileHeader = ({ profile, subtitle }: Props) => {
       {/* NEXA badge */}
       <View style={styles.badge}>
         <LinearGradient
-          colors={[theme.colors.accent, '#7EE800']}
+          colors={isDark ? [appTheme.colors.accent, '#7EE800'] : [appTheme.colors.accent, '#4FB86A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.badgeGradient}
@@ -84,76 +87,77 @@ export const ProfileHeader = ({ profile, subtitle }: Props) => {
 const AVATAR_SIZE = 100;
 const RING_PADDING = 3;
 
-const styles = StyleSheet.create({
-  container: { alignItems: 'center', paddingTop: theme.spacing.xl },
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    container: { alignItems: 'center', paddingTop: appTheme.spacing.xl },
 
-  ringOuter: {
-    // Accent glow shadow (iOS)
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 12,
-    borderRadius: (AVATAR_SIZE + RING_PADDING * 2 + 4) / 2,
-    marginBottom: theme.spacing.md,
-  },
-  ring: {
-    borderRadius: (AVATAR_SIZE + RING_PADDING * 2 + 4) / 2,
-    padding: RING_PADDING,
-  },
-  ringCutout: {
-    borderRadius: (AVATAR_SIZE + 2) / 2,
-    padding: 2,
-    backgroundColor: theme.colors.bg,
-  },
-  avatarBg: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initials: {
-    fontSize: 36,
-    fontWeight: theme.font.weightBlack,
-    color: theme.colors.accent,
-    letterSpacing: 2,
-  },
+    ringOuter: {
+      // Accent glow shadow (iOS)
+      shadowColor: appTheme.colors.accent,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.45,
+      shadowRadius: 16,
+      elevation: 12,
+      borderRadius: (AVATAR_SIZE + RING_PADDING * 2 + 4) / 2,
+      marginBottom: appTheme.spacing.md,
+    },
+    ring: {
+      borderRadius: (AVATAR_SIZE + RING_PADDING * 2 + 4) / 2,
+      padding: RING_PADDING,
+    },
+    ringCutout: {
+      borderRadius: (AVATAR_SIZE + 2) / 2,
+      padding: 2,
+      backgroundColor: appTheme.colors.bg,
+    },
+    avatarBg: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    initials: {
+      fontSize: 36,
+      fontWeight: appTheme.font.weightBlack,
+      color: appTheme.colors.accent,
+      letterSpacing: 2,
+    },
 
-  badge: {
-    position: 'absolute',
-    top: AVATAR_SIZE + RING_PADDING * 2 + theme.spacing.xl - 4,
-    borderRadius: theme.radius.pill,
-    overflow: 'hidden',
-    // subtle shadow
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  badgeGradient: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: theme.radius.pill,
-  },
-  badgeText: {
-    color: theme.colors.accentText,
-    fontSize: 9,
-    fontWeight: theme.font.weightBlack,
-    letterSpacing: 1.5,
-  },
+    badge: {
+      position: 'absolute',
+      top: AVATAR_SIZE + RING_PADDING * 2 + appTheme.spacing.xl - 4,
+      borderRadius: appTheme.radius.pill,
+      overflow: 'hidden',
+      // subtle shadow
+      shadowColor: appTheme.colors.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.5,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    badgeGradient: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: appTheme.radius.pill,
+    },
+    badgeText: {
+      color: appTheme.colors.accentText,
+      fontSize: 9,
+      fontWeight: appTheme.font.weightBlack,
+      letterSpacing: 1.5,
+    },
 
-  name: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeXl,
-    fontWeight: theme.font.weightBlack,
-    marginTop: theme.spacing.sm,
-    letterSpacing: 0.3,
-  },
-  subtitle: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    marginTop: 3,
-  },
-});
+    name: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeXl,
+      fontWeight: appTheme.font.weightBlack,
+      marginTop: appTheme.spacing.sm,
+      letterSpacing: 0.3,
+    },
+    subtitle: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+      marginTop: 3,
+    },
+  });

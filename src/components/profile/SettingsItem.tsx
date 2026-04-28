@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface Props {
@@ -13,7 +14,9 @@ interface Props {
 }
 
 export const SettingsItem = ({ icon, label, subLabel, rightElement, onPress, danger }: Props) => {
-  const color = danger ? theme.colors.danger : theme.colors.text;
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
+  const color = danger ? appTheme.colors.danger : appTheme.colors.text;
   const Wrapper = onPress ? TouchableOpacity : View;
 
   return (
@@ -30,28 +33,29 @@ export const SettingsItem = ({ icon, label, subLabel, rightElement, onPress, dan
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-  },
-  iconContainer: {
-    width: 36,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  label: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  subLabel: {
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-    marginTop: 2,
-  }
-});
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: appTheme.spacing.md,
+    },
+    iconContainer: {
+      width: 36,
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+    },
+    textContainer: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    label: {
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightMedium,
+    },
+    subLabel: {
+      fontSize: appTheme.font.sizeSm,
+      color: appTheme.colors.muted,
+      marginTop: 2,
+    },
+  });

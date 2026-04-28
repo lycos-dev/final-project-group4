@@ -1,11 +1,10 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   Text,
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,14 +15,20 @@ import { Button } from '../../components/ui/Button';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { StatCard } from '../../components/profile/StatCard';
 import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export const ProfileScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const { profile, settings } = useProfile();
+  const { completedWorkouts } = useWorkout();
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -48,13 +53,12 @@ export const ProfileScreen = () => {
   const weightUnit = isImperial ? 'lb' : 'kg';
 
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
+  const recentCompletedWorkouts = useMemo(
+    () => [...completedWorkouts].sort((a, b) => b.completedAt - a.completedAt).slice(0, 5),
+    [completedWorkouts],
+  );
 
-  // ── Bottom clearance: tab bar (64) + iOS home indicator inset ───────
-  // The bottom tab bar is 64px. On devices with a home indicator the
-  // safe-area bottom inset (typically 34px on modern iPhones) is already
-  // consumed by the tab bar itself, so we only add a comfortable visual
-  // buffer on top of that rather than double-counting the inset.
-  const bottomPadding = 64 + (Platform.OS === 'ios' ? theme.spacing.xl : theme.spacing.lg);
+  const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
 
   return (
     <ScrollView
@@ -123,14 +127,27 @@ export const ProfileScreen = () => {
         />
       </View>
 
-      {/* ── Workout Activity ─────────────────────────────────────────── */}
+      {/* ── Completed Workouts ──────────────────────────────────────── */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>WORKOUT ACTIVITY</Text>
-        <EmptyPlaceholder
-          icon="stats-chart-outline"
-          title="No workouts logged"
-          message={'Your weekly activity chart will appear\nhere once you log a session.'}
-        />
+        <Text style={styles.sectionLabel}>COMPLETED WORKOUTS</Text>
+        {recentCompletedWorkouts.length === 0 ? (
+          <EmptyPlaceholder
+            icon="stats-chart-outline"
+            title="No workouts logged"
+            message={'Saved workouts will appear here\nonce you complete a session.'}
+          />
+        ) : (
+          <View style={styles.completedList}>
+            {recentCompletedWorkouts.map((workout) => (
+              <Card key={workout.id}>
+                <Text style={styles.completedName}>{workout.routineName}</Text>
+                <Text style={styles.completedMeta}>
+                  {new Date(workout.completedAt).toLocaleDateString()} · {workout.durationMinutes} min · {workout.totalSets} sets
+                </Text>
+              </Card>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* ── Actions ──────────────────────────────────────────────────── */}
@@ -152,75 +169,92 @@ export const ProfileScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  // ScrollView itself fills the screen; background must be set here so
-  // the area behind the status bar matches the app background.
-  root: {
-    flex: 1,
-  },
-  // contentContainerStyle — paddingTop and paddingBottom are injected
-  // dynamically from insets so they adapt to every device form factor.
-  scroll: {
-    flexGrow: 1,
-  },
+const createStyles = (appTheme: typeof theme) => {
+  const theme = appTheme;
+  return StyleSheet.create({
+    // ScrollView itself fills the screen; background must be set here so
+    // the area behind the status bar matches the app background.
+    root: {
+      flex: 1,
+    },
+    // contentContainerStyle — paddingTop and paddingBottom are injected
+    // dynamically from insets so they adapt to every device form factor.
+    scroll: {
+      flexGrow: 1,
+    },
 
-  statsRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  section: {
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  sectionLabel: {
-    color: theme.colors.muted,
-    fontSize: 11,
-    fontWeight: theme.font.weightBold,
-    letterSpacing: 1.2,
-  },
-  goalText: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeMd,
-    lineHeight: 22,
-  },
+    statsRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    section: {
+      marginTop: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    sectionLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
+      fontWeight: theme.font.weightBold,
+      letterSpacing: 1.2,
+    },
+    goalText: {
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeMd,
+      lineHeight: 22,
+    },
 
-  /* ── Goals Card ────────────────────────────────────────────────────── */
-  goalsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(198, 255, 61, 0.2)',
-    gap: theme.spacing.md,
-  },
-  goalsIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.radius.md,
-    backgroundColor: 'rgba(198, 255, 61, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  goalsText: { flex: 1 },
-  goalsTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  goalsSub: {
-    fontSize: 12,
-    color: theme.colors.muted,
-  },
+    /* ── Goals Card ────────────────────────────────────────────────────── */
+    goalsCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: `${theme.colors.accent}33`,
+      gap: theme.spacing.md,
+    },
+    goalsIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radius.md,
+      backgroundColor: `${theme.colors.accent}1A`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    goalsText: { flex: 1 },
+    goalsTitle: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      marginBottom: 2,
+    },
+    goalsSub: {
+      fontSize: 12,
+      color: theme.colors.muted,
+    },
 
-  /* ── Bottom Actions ────────────────────────────────────────────────── */
-  actions: {
-    marginTop: theme.spacing.xxl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-});
+    completedList: {
+      gap: theme.spacing.sm,
+    },
+    completedName: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      marginBottom: 4,
+    },
+    completedMeta: {
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeSm,
+    },
+
+    /* ── Bottom Actions ────────────────────────────────────────────────── */
+    actions: {
+      marginTop: theme.spacing.xxl,
+      paddingHorizontal: theme.spacing.lg,
+    },
+  });
+};

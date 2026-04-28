@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../context/ThemeContext';
 import { useExercises } from '../../context/ExerciseContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
@@ -19,6 +20,9 @@ import { theme } from '../../theme/theme';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export const CustomLibraryScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { exercises } = useExercises();
@@ -33,7 +37,11 @@ export const CustomLibraryScreen = () => {
   const ListHeader = (
     <>
       <LinearGradient
-        colors={['#1C2A00', '#182200', '#0e1500']}
+        colors={[
+          `${theme.colors.accent}33`,
+          theme.colors.surfaceAlt,
+          theme.colors.surface,
+        ]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 56 }]}
@@ -162,7 +170,9 @@ export const CustomLibraryScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (appTheme: typeof theme) => {
+  const theme = appTheme;
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
 
   /* ── Sticky back button ────────────────────────────────────────────── */
@@ -343,4 +353,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-});
+  });
+};

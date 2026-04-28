@@ -18,6 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
@@ -72,6 +73,9 @@ const BottomSheetModal = ({
   onClose: () => void;
   children: React.ReactNode;
 }) => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -112,6 +116,9 @@ const DraggableRoutineCard = ({
   onDragStart,
   isDragging,
 }: DraggableRoutineCardProps) => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const scale = useRef(new Animated.Value(1)).current;
 
   const panResponder = useRef(
@@ -169,6 +176,9 @@ const DraggableRoutineCard = ({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export const ExerciseListScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
@@ -389,7 +399,10 @@ export const ExerciseListScreen = () => {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: theme.spacing.xl },
+        ]}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollOffsetY.current = e.nativeEvent.contentOffset.y; }}
         // Attach global drag tracker only while a drag is active
@@ -412,7 +425,11 @@ export const ExerciseListScreen = () => {
             activeOpacity={0.82}
           >
             <LinearGradient
-              colors={['#1C2A00', '#243600', '#1A2900']}
+              colors={[
+                `${theme.colors.accent}3D`,
+                theme.colors.surfaceAlt,
+                theme.colors.surface,
+              ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.libraryGradient}
@@ -896,9 +913,11 @@ export const ExerciseListScreen = () => {
 };
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const createStyles = (appTheme: typeof theme) => {
+  const theme = appTheme;
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
-  scrollContent: { paddingBottom: theme.spacing.xxl },
+  scrollContent: {},
 
   topSection: {
     paddingHorizontal: theme.spacing.lg,
@@ -1296,4 +1315,5 @@ const styles = StyleSheet.create({
   folderPickerOptionText: { flex: 1, fontSize: theme.font.sizeMd, color: theme.colors.text },
   noFoldersHint: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
   noFoldersHintText: { fontSize: theme.font.sizeSm, color: theme.colors.muted, textAlign: 'center', lineHeight: 20 },
-});
+  });
+};

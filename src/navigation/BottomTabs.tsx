@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExerciseListScreen } from '../screens/exercises/ExerciseListScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { useTheme } from '../context/ThemeContext';
 import { theme } from '../theme/theme';
 import { useWorkout } from '../context/WorkoutContext';
 import type { RootStackParamList } from './RootNavigator';
@@ -48,6 +49,8 @@ interface TabButtonProps {
 }
 
 const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const iconScale    = useRef(new Animated.Value(isActive ? 1.1 : 1)).current;
   const labelOpacity = useRef(new Animated.Value(isActive ? 1 : 0.6)).current;
   const pressScale   = useRef(new Animated.Value(1)).current;
@@ -72,14 +75,14 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
           <Ionicons
             name={(isActive ? tab.icon : tab.iconOutline) as any}
             size={ICON_SIZE}
-            color={isActive ? theme.colors.accent : theme.colors.muted}
+            color={isActive ? appTheme.colors.accent : appTheme.colors.muted}
           />
         </Animated.View>
         <Animated.Text
           numberOfLines={1}
           style={[
             styles.tabLabel,
-            { color: isActive ? theme.colors.accent : theme.colors.muted, opacity: labelOpacity },
+            { color: isActive ? appTheme.colors.accent : appTheme.colors.muted, opacity: labelOpacity },
           ]}
         >
           {tab.label}
@@ -94,6 +97,8 @@ const TabButton = ({ tab, isActive, onPress }: TabButtonProps) => {
  * Visible on every tab — the user shouldn't lose track of it.
  */
 const WorkoutMiniBar = () => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isActive, isMinimized, setMinimized, discardWorkout, getElapsedSeconds, isPaused } = useWorkout();
   const [, force] = useState(0);
@@ -167,14 +172,14 @@ const WorkoutMiniBar = () => {
           style={styles.miniIconBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="chevron-up" size={20} color={theme.colors.accentText} />
+          <Ionicons name="chevron-up" size={20} color={appTheme.colors.accentText} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={askDiscard}
           style={[styles.miniIconBtn, styles.miniIconBtnGhost]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="close" size={18} color={theme.colors.text} />
+          <Ionicons name="close" size={18} color={appTheme.colors.text} />
         </TouchableOpacity>
       </TouchableOpacity>
     </Animated.View>
@@ -184,6 +189,8 @@ const WorkoutMiniBar = () => {
 interface CustomTabBarProps { state: any; descriptors: any; navigation: any; }
 
 const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const insets = useSafeAreaInsets();
   const activeIdx = state.index;
 
@@ -229,13 +236,15 @@ const CustomTabBar = ({ state, navigation }: CustomTabBarProps) => {
 };
 
 export default function BottomTabs() {
+  const { theme: appTheme } = useTheme();
+
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.bg },
-        headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: theme.font.weightBold, fontSize: theme.font.sizeLg },
+        headerStyle: { backgroundColor: appTheme.colors.bg },
+        headerTintColor: appTheme.colors.text,
+        headerTitleStyle: { fontWeight: appTheme.font.weightBold, fontSize: appTheme.font.sizeLg },
       }}
     >
       <Tab.Screen name="Home"    component={HomeScreen}         options={{ title: 'NEXA' }} />
@@ -245,71 +254,72 @@ export default function BottomTabs() {
   );
 }
 
-const styles = StyleSheet.create({
-  barWrapper: {
-    backgroundColor: theme.colors.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -3 },
-    elevation: 12,
-  },
-  topDivider: { height: 1, backgroundColor: theme.colors.border, opacity: 0.4 },
-  indicator: {
-    position: 'absolute',
-    top: 0,
-    width: 32,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: theme.colors.accent,
-  },
-  tabsRow: { flexDirection: 'row', alignItems: 'center', height: BAR_HEIGHT },
-  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_HEIGHT },
-  tabInner: { alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 10 },
-  iconWrap: { marginBottom: 3 },
-  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3, textAlign: 'center' },
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    barWrapper: {
+      backgroundColor: appTheme.colors.surface,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: -3 },
+      elevation: 12,
+    },
+    topDivider: { height: 1, backgroundColor: appTheme.colors.border, opacity: 0.4 },
+    indicator: {
+      position: 'absolute',
+      top: 0,
+      width: 32,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: appTheme.colors.accent,
+    },
+    tabsRow: { flexDirection: 'row', alignItems: 'center', height: BAR_HEIGHT },
+    tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_HEIGHT },
+    tabInner: { alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 10 },
+    iconWrap: { marginBottom: 3 },
+    tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3, textAlign: 'center' },
 
-  /* ── Floating mini-bar ─────────────────────────────────────────────── */
-  miniBarWrap: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-  },
-  miniBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.lg,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    gap: theme.spacing.sm,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  miniDot: {
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: theme.colors.danger,
-  },
-  miniTitle: {
-    color: theme.colors.accentText,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightBold,
-  },
-  miniSub: {
-    color: theme.colors.accentText,
-    fontSize: 11,
-    opacity: 0.8,
-    marginTop: 1,
-  },
-  miniIconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-  },
-  miniIconBtnGhost: { backgroundColor: 'rgba(0,0,0,0.10)' },
-});
+    /* ── Floating mini-bar ─────────────────────────────────────────────── */
+    miniBarWrap: {
+      paddingHorizontal: appTheme.spacing.md,
+      paddingBottom: appTheme.spacing.sm,
+    },
+    miniBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: appTheme.colors.accent,
+      borderRadius: appTheme.radius.lg,
+      paddingHorizontal: appTheme.spacing.md,
+      paddingVertical: appTheme.spacing.sm,
+      gap: appTheme.spacing.sm,
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 8,
+    },
+    miniDot: {
+      width: 10, height: 10, borderRadius: 5,
+      backgroundColor: appTheme.colors.danger,
+    },
+    miniTitle: {
+      color: appTheme.colors.accentText,
+      fontSize: appTheme.font.sizeSm,
+      fontWeight: appTheme.font.weightBold,
+    },
+    miniSub: {
+      color: appTheme.colors.accentText,
+      fontSize: 11,
+      opacity: 0.8,
+      marginTop: 1,
+    },
+    miniIconBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.18)',
+    },
+    miniIconBtnGhost: { backgroundColor: 'rgba(0,0,0,0.10)' },
+  });

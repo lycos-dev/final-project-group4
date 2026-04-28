@@ -6,9 +6,9 @@ import {
   StyleSheet,
   TextInputProps,
   Animated,
-  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface Props extends TextInputProps {
@@ -21,6 +21,8 @@ interface Props extends TextInputProps {
 }
 
 export const Input = ({ label, error, style, unit, hint, ...rest }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const [focused, setFocused] = useState(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
@@ -37,10 +39,10 @@ export const Input = ({ label, error, style, unit, hint, ...rest }: Props) => {
   prevError.current = error;
 
   const borderColor = error
-    ? theme.colors.danger
+    ? appTheme.colors.danger
     : focused
-    ? theme.colors.accent
-    : theme.colors.border;
+    ? appTheme.colors.accent
+    : appTheme.colors.border;
 
   return (
     <View style={styles.wrap}>
@@ -65,7 +67,7 @@ export const Input = ({ label, error, style, unit, hint, ...rest }: Props) => {
         ]}
       >
         <TextInput
-          placeholderTextColor={theme.colors.muted}
+          placeholderTextColor={appTheme.colors.muted}
           style={[styles.input, style]}
           onFocus={(e) => {
             setFocused(true);
@@ -82,7 +84,7 @@ export const Input = ({ label, error, style, unit, hint, ...rest }: Props) => {
 
       {error ? (
         <View style={styles.feedbackRow}>
-          <Ionicons name="alert-circle-outline" size={13} color={theme.colors.danger} />
+          <Ionicons name="alert-circle-outline" size={13} color={appTheme.colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : hint ? (
@@ -92,63 +94,64 @@ export const Input = ({ label, error, style, unit, hint, ...rest }: Props) => {
   );
 };
 
-const styles = StyleSheet.create({
-  wrap: { marginBottom: theme.spacing.lg },
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    wrap: { marginBottom: appTheme.spacing.lg },
 
-  label: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightMedium,
-    marginBottom: theme.spacing.xs,
-    letterSpacing: 0.2,
-  },
-  labelFocused: { color: theme.colors.accent },
-  labelError: { color: theme.colors.danger },
+    label: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+      fontWeight: appTheme.font.weightMedium,
+      marginBottom: appTheme.spacing.xs,
+      letterSpacing: 0.2,
+    },
+    labelFocused: { color: appTheme.colors.accent },
+    labelError: { color: appTheme.colors.danger },
 
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    overflow: 'hidden',
-  },
-  inputRowFocused: {
-    backgroundColor: theme.colors.surfaceAlt,
-  },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: appTheme.colors.surface,
+      borderWidth: 1.5,
+      borderColor: appTheme.colors.border,
+      borderRadius: appTheme.radius.md,
+      overflow: 'hidden',
+    },
+    inputRowFocused: {
+      backgroundColor: appTheme.colors.surfaceAlt,
+    },
 
-  input: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    minHeight: 48,
-  },
+    input: {
+      flex: 1,
+      paddingHorizontal: appTheme.spacing.lg,
+      paddingVertical: appTheme.spacing.md,
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      minHeight: 48,
+    },
 
-  unit: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightMedium,
-    paddingRight: theme.spacing.md,
-    paddingLeft: theme.spacing.xs,
-  },
+    unit: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeSm,
+      fontWeight: appTheme.font.weightMedium,
+      paddingRight: appTheme.spacing.md,
+      paddingLeft: appTheme.spacing.xs,
+    },
 
-  feedbackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 5,
-  },
-  errorText: {
-    color: theme.colors.danger,
-    fontSize: theme.font.sizeXs,
-    flexShrink: 1,
-  },
-  hint: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
-    marginTop: 5,
-  },
-});
+    feedbackRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 5,
+    },
+    errorText: {
+      color: appTheme.colors.danger,
+      fontSize: appTheme.font.sizeXs,
+      flexShrink: 1,
+    },
+    hint: {
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeXs,
+      marginTop: 5,
+    },
+  });

@@ -5,9 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { useExercises } from '../../context/ExerciseContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme } from '../../theme/theme';
+import { Theme } from '../../theme/theme';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddExercise'>;
@@ -23,6 +24,9 @@ const EQUIPMENT_TYPES = [
 ];
 
 export const AddExerciseScreen = ({ navigation }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const { exercises } = useExercises();
   const { addExercises } = useWorkout();
   const [search, setSearch] = useState('');
@@ -182,7 +186,7 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
               </TouchableOpacity>
               {selectedExercises.has(item.id) && (
                 <View style={styles.checkmark}>
-                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Ionicons name="checkmark" size={20} color={theme.colors.accentText} />
                 </View>
               )}
             </View>
@@ -290,7 +294,10 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (appTheme: Theme) => {
+  const theme = appTheme;
+
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -503,4 +510,5 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sizeSm,
     color: theme.colors.muted,
   },
-});
+  });
+};

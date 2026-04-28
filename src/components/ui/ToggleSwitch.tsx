@@ -1,6 +1,6 @@
 import React from 'react';
 import { Switch, Platform } from 'react-native';
-import { theme } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   value: boolean;
@@ -8,6 +8,8 @@ interface Props {
 }
 
 export const ToggleSwitch = ({ value, onValueChange }: Props) => {
+  const { theme } = useTheme();
+
   return (
     <Switch
       value={value}

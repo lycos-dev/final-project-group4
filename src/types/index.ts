@@ -34,6 +34,20 @@ export interface Settings {
   notifications: boolean;
 }
 
+export type GoalType = 'Weight Loss' | 'Weight Gain' | 'Endurance' | 'Strength';
+
+export interface Goal {
+  id: string;
+  name: string;
+  type: GoalType;
+  targetValue: number;
+  startingValue: number;
+  currentValue: number;
+  hasManualUpdate: boolean;
+  deadline: string;
+  createdAt: number;
+}
+
 export interface RoutineExercise extends Exercise {
   instanceId?: string; // Unique ID for this exercise instance in the routine (for handling duplicates)
   notes?: string;

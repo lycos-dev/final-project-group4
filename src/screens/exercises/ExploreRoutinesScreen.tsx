@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { PRESET_ROUTINES } from '../../data/presetRoutines';
 import { PresetRoutine } from '../../types';
@@ -46,6 +47,9 @@ const LEVEL_ICONS: Record<PresetRoutine['level'], keyof typeof Ionicons.glyphMap
 };
 
 export const ExploreRoutinesScreen = () => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
   const { exercises: activeExercises, addExercises, clearWorkout } = useWorkout();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -190,7 +194,9 @@ export const ExploreRoutinesScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (appTheme: typeof theme) => {
+  const theme = appTheme;
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: theme.colors.bg,
@@ -341,4 +347,5 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBold,
     color: theme.colors.accentText,
   },
-});
+  });
+};

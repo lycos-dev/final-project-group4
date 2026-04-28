@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -20,8 +20,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Screen } from "../../components/ui/Screen";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useTheme } from "../../context/ThemeContext";
 import { RootStackParamList } from "../../navigation/RootNavigator";
-import { theme } from "../../theme/theme";
+import { Theme } from "../../theme/theme";
 import {
   useWorkout,
   LogExercise,
@@ -72,11 +73,11 @@ const SET_TYPE_INFO: Record<SetType | "remove", { title: string; body: string }>
   },
 };
 
-const SET_TYPE_OPTIONS: { key: SetType | "remove"; label: string; color: string }[] = [
-  { key: "normal",  label: "Normal Set",  color: theme.colors.text   },
-  { key: "warmup",  label: "Warm-Up Set", color: "#F5C518"           },
+const getSetTypeOptions = (theme: Theme): { key: SetType | "remove"; label: string; color: string }[] => [
+  { key: "normal",  label: "Normal Set",  color: theme.colors.text },
+  { key: "warmup",  label: "Warm-Up Set", color: "#F5C518" },
   { key: "failure", label: "Failure Set", color: theme.colors.danger },
-  { key: "remove",  label: "Remove Set",  color: theme.colors.muted  },
+  { key: "remove",  label: "Remove Set",  color: theme.colors.muted },
 ];
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
@@ -122,11 +123,13 @@ const WheelPicker = ({
   onChange,
   count,
   suffix,
+  pickStyles,
 }: {
   value: number;
   onChange: (v: number) => void;
   count: number;
   suffix: string;
+  pickStyles: ReturnType<typeof createPickStyles>;
 }) => {
   const scrollRef = useRef<ScrollView>(null);
   // Use a ref so the latest committed index is always readable synchronously
@@ -190,71 +193,37 @@ const WheelPicker = ({
   );
 };
 
-const pickStyles = StyleSheet.create({
-  column: {
-    flex: 1,
-    height: ITEM_HEIGHT * VISIBLE,
-    overflow: "hidden",
-  },
-  selectionBand: {
-    position: "absolute",
-    top: ITEM_HEIGHT * 2,
-    left: 0,
-    right: 0,
-    height: ITEM_HEIGHT,
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: theme.colors.accent,
-    backgroundColor: "rgba(198, 255, 61, 0.08)",
-    zIndex: 1,
-  },
-  row: {
-    height: ITEM_HEIGHT,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  // Base styles shared by both states
-  numText: {
-    fontSize: 20,
-    lineHeight: ITEM_HEIGHT,   // locks text vertically inside the row
-    textAlign: "right",
-    minWidth: 36,
-  },
-  numTextActive: {
-    color: theme.colors.accent,
-    fontWeight: "800",
-  },
-  numTextInactive: {
-    color: theme.colors.muted,
-    fontWeight: "500",
-    opacity: 0.5,
-  },
-  suffixText: {
-    fontSize: 14,
-    lineHeight: ITEM_HEIGHT,   // locks text vertically inside the row
-    width: 32,
-  },
-  suffixTextActive: {
-    color: theme.colors.accent,
-    fontWeight: "700",
-  },
-  suffixTextInactive: {
-    color: theme.colors.muted,
-    fontWeight: "400",
-    opacity: 0.4,
-  },
-});
+const createPickStyles = (theme: Theme) =>
+  StyleSheet.create({
+    selectionBand: {
+      position: "absolute",
+      top: ITEM_HEIGHT * 2,
+      left: 0,
+      right: 0,
+      height: ITEM_HEIGHT,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: theme.colors.accent,
+      backgroundColor: "rgba(198, 255, 61, 0.06)",
+    },
+    row: { height: ITEM_HEIGHT, alignItems: "center", justifyContent: "center" },
+    rowText: { color: theme.colors.muted, fontSize: 16, fontWeight: "600" },
+    rowTextActive: { color: theme.colors.accent, fontSize: 22, fontWeight: "800" },
+  });
 
 /* ─── Main screen ──────────────────────────────────────────────────────────── */
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const theme = appTheme;
+  const styles = createStyles(appTheme);
+  const pickStyles = useMemo(() => createPickStyles(appTheme), [appTheme]);
+  const setTypeOptions = useMemo(() => getSetTypeOptions(appTheme), [appTheme]);
+
   const {
     exercises,
     setExercises,
     addExercises,
-    clearWorkout,
     discardWorkout,
     startTime,
     setStartTime,
@@ -445,30 +414,59 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   // ── Navigation actions ────────────────────────────────────────────────────
   const handleAddExercise = () => navigation.navigate("AddExercise");
 
-  const handleFinish = () => {
-    if (settings.showFinishSummary && exercises.length > 0) {
-      const completedCount = exercises.reduce(
-        (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
-        0,
-      );
-      Alert.alert(
-        "Finish Workout? 🎉",
-        `${completedCount} set${completedCount !== 1 ? "s" : ""} completed · ${formatDuration(elapsed)}`,
-        [
-          { text: "Keep going", style: "cancel" },
-          {
-            text: "Finish",
-            onPress: () => {
-              clearWorkout(route.params?.routineName);
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    } else {
-      clearWorkout(route.params?.routineName);
-      navigation.goBack();
+  const validateBeforeFinish = () => {
+    if (exercises.length === 0) {
+      return "Add at least one exercise before finishing.";
     }
+
+    const completedCount = exercises.reduce(
+      (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+      0,
+    );
+
+    if (completedCount === 0) {
+      return "Complete at least one set before finishing.";
+    }
+
+    const hasInvalidCompletedSet = exercises.some((ex) =>
+      ex.sets.some((set) => {
+        if (!set.completed) return false;
+        const reps = Number(set.reps);
+        const weight = Number(set.weight);
+        return !Number.isFinite(reps) || reps <= 0 || !Number.isFinite(weight) || weight < 0;
+      }),
+    );
+
+    if (hasInvalidCompletedSet) {
+      return "Completed sets must have valid reps (> 0) and weight (>= 0).";
+    }
+
+    return null;
+  };
+
+  const proceedToSaveWorkout = () => {
+    const completedCount = exercises.reduce(
+      (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+      0,
+    );
+    const routineName = route.params?.routineName?.trim() || "Custom Workout";
+    navigation.navigate("SaveWorkout", {
+      routineName,
+      durationSeconds: elapsed,
+      totalVolumeKg: totalVolume,
+      totalSets: completedCount,
+      completedAt: Date.now(),
+    });
+  };
+
+  const handleFinish = () => {
+    const validationError = validateBeforeFinish();
+    if (validationError) {
+      Alert.alert("Workout not ready", validationError);
+      return;
+    }
+
+    proceedToSaveWorkout();
   };
 
   const doDiscard = () => {
@@ -691,7 +689,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                           onPress={() => toggleSetCompletion(exercise.id, set.id)}
                         >
                           {set.completed && (
-                            <Ionicons name="checkmark" size={16} color="#fff" />
+                            <Ionicons name="checkmark" size={16} color={theme.colors.accentText} />
                           )}
                         </TouchableOpacity>
                       </View>
@@ -818,8 +816,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 setShowExerciseMenu(null);
               }}
             >
-              <Ionicons name="trash" size={20} color="#ff6b6b" />
-              <Text style={[styles.menuItemText, { color: "#ff6b6b" }]}>Remove Exercise</Text>
+              <Ionicons name="trash" size={20} color={theme.colors.danger} />
+              <Text style={[styles.menuItemText, { color: theme.colors.danger }]}>Remove Exercise</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -885,18 +883,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
             <Text style={styles.fieldLabel}>DURATION</Text>
             <View style={styles.wheelRow}>
-              <WheelPicker
-                value={draftHours}
-                onChange={(v) => { draftHoursRef.current = v; setDraftHours(v); }}
-                count={24}
-                suffix="hr"
-              />
-              <WheelPicker
-                value={draftMinutes}
-                onChange={(v) => { draftMinsRef.current = v; setDraftMinutes(v); }}
-                count={60}
-                suffix="min"
-              />
+              <WheelPicker value={draftHours} onChange={setDraftHours} count={24} suffix="hr" pickStyles={pickStyles} />
+              <WheelPicker value={draftMinutes} onChange={setDraftMinutes} count={60} suffix="min" pickStyles={pickStyles} />
             </View>
 
             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
@@ -1039,7 +1027,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         <Pressable style={styles.modalOverlay} onPress={() => setSetTypeTarget(null)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Select Set Type</Text>
-            {SET_TYPE_OPTIONS.map((opt) => (
+            {setTypeOptions.map((opt) => (
               <View key={opt.key} style={styles.setTypeRow}>
                 <TouchableOpacity
                   style={styles.setTypeMain}
@@ -1264,7 +1252,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 };
 
 /* ─── Styles ───────────────────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",

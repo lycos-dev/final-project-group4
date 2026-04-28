@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
 interface Props {
@@ -8,27 +9,33 @@ interface Props {
   onPress?: () => void;
 }
 
-export const Chip = ({ label, active, onPress }: Props) => (
-  <TouchableOpacity
-    activeOpacity={0.8}
-    onPress={onPress}
-    style={[styles.chip, active && styles.active]}
-  >
-    <Text style={[styles.label, active && styles.activeLabel]}>{label}</Text>
-  </TouchableOpacity>
-);
+export const Chip = ({ label, active, onPress }: Props) => {
+  const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
 
-const styles = StyleSheet.create({
-  chip: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginRight: theme.spacing.sm,
-  },
-  active: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
-  label: { color: theme.colors.text, fontSize: theme.font.sizeSm, fontWeight: theme.font.weightMedium },
-  activeLabel: { color: theme.colors.accentText, fontWeight: theme.font.weightBold },
-});
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={[styles.chip, active && styles.active]}
+    >
+      <Text style={[styles.label, active && styles.activeLabel]}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const createStyles = (appTheme: typeof theme) =>
+  StyleSheet.create({
+    chip: {
+      paddingHorizontal: appTheme.spacing.lg,
+      paddingVertical: appTheme.spacing.sm,
+      backgroundColor: appTheme.colors.surface,
+      borderRadius: appTheme.radius.pill,
+      borderWidth: 1,
+      borderColor: appTheme.colors.border,
+      marginRight: appTheme.spacing.sm,
+    },
+    active: { backgroundColor: appTheme.colors.accent, borderColor: appTheme.colors.accent },
+    label: { color: appTheme.colors.text, fontSize: appTheme.font.sizeSm, fontWeight: appTheme.font.weightMedium },
+    activeLabel: { color: appTheme.colors.accentText, fontWeight: appTheme.font.weightBold },
+  });
