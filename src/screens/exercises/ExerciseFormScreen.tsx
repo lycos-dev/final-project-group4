@@ -23,6 +23,7 @@ import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 import { required, numberInRange, maxLength } from '../../utils/validation';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseForm'>;
 type R = RouteProp<RootStackParamList, 'ExerciseForm'>;
@@ -32,6 +33,7 @@ const textToSteps = (text: string): string[] =>
   text.split('\n').map((s) => s.trim()).filter(Boolean);
 
 export const ExerciseFormScreen = () => {
+  const { theme: appTheme } = useTheme();
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const { getById, addExercise, updateExercise } = useExercises();
@@ -134,12 +136,18 @@ export const ExerciseFormScreen = () => {
       {/* ── Muscle Group dropdown ──────────────────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>MUSCLE GROUP</Text>
       <TouchableOpacity
-        style={styles.dropdown}
+        style={[
+          styles.dropdown,
+          {
+            backgroundColor: appTheme.colors.surface,
+            borderColor: appTheme.colors.border,
+          },
+        ]}
         onPress={() => setMuscleOpen(true)}
         activeOpacity={0.75}
       >
-        <Text style={styles.dropdownValue}>{muscleGroup}</Text>
-        <Ionicons name="chevron-down" size={18} color={theme.colors.muted} />
+        <Text style={[styles.dropdownValue, { color: appTheme.colors.text }]}>{muscleGroup}</Text>
+        <Ionicons name="chevron-down" size={18} color={appTheme.colors.muted} />
       </TouchableOpacity>
 
       <Modal
@@ -148,24 +156,44 @@ export const ExerciseFormScreen = () => {
         animationType="fade"
         onRequestClose={() => setMuscleOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setMuscleOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Choose muscle group</Text>
+        <Pressable
+          style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.55)' }]}
+          onPress={() => setMuscleOpen(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalSheet,
+              { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.modalTitle, { color: appTheme.colors.text }]}>Choose muscle group</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               {MUSCLE_GROUPS.map((g) => {
                 const active = g === muscleGroup;
                 return (
                   <TouchableOpacity
                     key={g}
-                    style={[styles.option, active && styles.optionActive]}
+                    style={[
+                      styles.option,
+                      active && { backgroundColor: `${appTheme.colors.accent}14` },
+                    ]}
                     onPress={() => {
                       setMuscleGroup(g);
                       setMuscleOpen(false);
                     }}
                   >
-                    <Text style={[styles.optionText, active && styles.optionTextActive]}>{g}</Text>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        { color: appTheme.colors.text },
+                        active && { color: appTheme.colors.accent, fontWeight: appTheme.font.weightBold },
+                      ]}
+                    >
+                      {g}
+                    </Text>
                     {active && (
-                      <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                      <Ionicons name="checkmark" size={18} color={appTheme.colors.accent} />
                     )}
                   </TouchableOpacity>
                 );
@@ -320,14 +348,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   modalSheet: {
-    backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
     padding: theme.spacing.md,
   },
   modalTitle: {
-    color: theme.colors.text,
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
     paddingHorizontal: theme.spacing.sm,
@@ -341,9 +366,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     borderRadius: theme.radius.md,
   },
-  optionActive: { backgroundColor: 'rgba(198, 255, 61, 0.08)' },
-  optionText: { color: theme.colors.text, fontSize: theme.font.sizeMd },
-  optionTextActive: { color: theme.colors.accent, fontWeight: theme.font.weightBold },
+  optionText: { fontSize: theme.font.sizeMd },
 
   /* Upload + preview */
   uploadBtn: {

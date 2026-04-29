@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { RootStackParamList } from '../../navigation/RootNavigator';
@@ -180,6 +180,7 @@ export const ExerciseListScreen = () => {
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
 
@@ -394,6 +395,7 @@ export const ExerciseListScreen = () => {
     hoveredTarget === 'unfoldered' &&
     draggingRoutine !== null &&
     draggingRoutine.folderId !== undefined;
+  const bottomPadding = insets.bottom + theme.spacing.xl + 72;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -401,7 +403,7 @@ export const ExerciseListScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: theme.spacing.xl },
+          { paddingBottom: bottomPadding },
         ]}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollOffsetY.current = e.nativeEvent.contentOffset.y; }}

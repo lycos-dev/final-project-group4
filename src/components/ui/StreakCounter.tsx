@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useWorkout } from '../../context/WorkoutContext';
+import { RootStackParamList } from '../../navigation/RootNavigator';
 
 interface Props {
   currentMonth?: number; // 0-11
@@ -17,6 +20,8 @@ export const StreakCounter = ({
   const { theme: appTheme } = useTheme();
   const styles = createStyles(appTheme);
   const { completedWorkouts } = useWorkout();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const workoutsByDay = useMemo(() => {
     const byDay: Record<number, string[]> = {};
     completedWorkouts.forEach((workout) => {
@@ -97,14 +102,26 @@ export const StreakCounter = ({
                 : firstWorkout
               : null;
 
+            const onPress = () => {
+              if (!day) return;
+              setSelectedDay(day);
+              navigation.navigate('WorkoutHistory', {
+                dateMs: new Date(currentYear, currentMonth, day).getTime(),
+              });
+            };
+
             return (
-            <View
+            <TouchableOpacity
               key={`${weekIndex}-${dayIndex}`}
               style={[
                 styles.dayCell,
                 day !== null && workoutDays.includes(day) ? styles.dayCellCompleted : undefined,
                 day !== null && day === currentDay ? styles.dayCellCurrent : undefined,
+                day !== null && day === selectedDay ? styles.dayCellSelected : undefined,
               ]}
+              activeOpacity={day ? 0.8 : 1}
+              disabled={!day}
+              onPress={onPress}
             >
               {day ? (
                 <>
@@ -131,11 +148,12 @@ export const StreakCounter = ({
                   ) : null}
                 </>
               ) : null}
-            </View>
+            </TouchableOpacity>
             );
           })}
         </View>
       ))}
+
     </View>
   );
 
@@ -208,6 +226,10 @@ const createStyles = (appTheme: typeof theme) =>
       shadowOpacity: 0.8,
       shadowRadius: 6,
       elevation: 6,
+    },
+    dayCellSelected: {
+      borderColor: appTheme.colors.accent,
+      borderWidth: 2,
     },
     dayNumber: {
       color: appTheme.colors.muted,

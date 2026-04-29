@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
 import {
   Text,
   View,
@@ -15,11 +15,13 @@ import { Button } from '../../components/ui/Button';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { StatCard } from '../../components/profile/StatCard';
 import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
+import { AchievementCard } from '../../components/profile/AchievementCard';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
+import { buildExerciseAchievements } from '../../utils/achievements';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -28,7 +30,7 @@ export const ProfileScreen = () => {
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const { profile, settings } = useProfile();
-  const { completedWorkouts } = useWorkout();
+  const { completedWorkouts, settings: workoutSettings } = useWorkout();
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -53,12 +55,12 @@ export const ProfileScreen = () => {
   const weightUnit = isImperial ? 'lb' : 'kg';
 
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
-  const recentCompletedWorkouts = useMemo(
-    () => [...completedWorkouts].sort((a, b) => b.completedAt - a.completedAt).slice(0, 5),
-    [completedWorkouts],
-  );
 
-  const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
+  const bottomPadding = insets.bottom + theme.spacing.xl + 72;
+  const achievements = useMemo(
+    () => buildExerciseAchievements(completedWorkouts, workoutSettings.weightUnit).slice(0, 3),
+    [completedWorkouts, workoutSettings.weightUnit],
+  );
 
   return (
     <ScrollView
@@ -120,34 +122,32 @@ export const ProfileScreen = () => {
       {/* ── Achievements ─────────────────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>ACHIEVEMENTS</Text>
-        <EmptyPlaceholder
-          icon="trophy-outline"
-          title="No achievements yet"
-          message={'Complete your first workout to start\nearning badges and milestones.'}
-        />
-      </View>
-
-      {/* ── Completed Workouts ──────────────────────────────────────── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>COMPLETED WORKOUTS</Text>
-        {recentCompletedWorkouts.length === 0 ? (
+        {achievements.length === 0 ? (
           <EmptyPlaceholder
-            icon="stats-chart-outline"
-            title="No workouts logged"
-            message={'Saved workouts will appear here\nonce you complete a session.'}
+            icon="trophy-outline"
+            title="No achievements yet"
+            message={'Complete your first workout to start\nearning badges and milestones.'}
           />
         ) : (
-          <View style={styles.completedList}>
-            {recentCompletedWorkouts.map((workout) => (
-              <Card key={workout.id}>
-                <Text style={styles.completedName}>{workout.routineName}</Text>
-                <Text style={styles.completedMeta}>
-                  {new Date(workout.completedAt).toLocaleDateString()} · {workout.durationMinutes} min · {workout.totalSets} sets
-                </Text>
-              </Card>
+          <View style={styles.achievementsList}>
+            {achievements.map((achievement) => (
+              <AchievementCard
+                key={achievement.id}
+                title={achievement.title}
+                detail={achievement.detail}
+              />
             ))}
           </View>
         )}
+        {achievements.length >= 3 ? (
+          <Button
+            title="See More Achievements"
+            variant="secondary"
+            onPress={() => nav.navigate('Achievements')}
+            fullWidth
+            style={{ marginTop: theme.spacing.md }}
+          />
+        ) : null}
       </View>
 
       {/* ── Actions ──────────────────────────────────────────────────── */}
@@ -237,18 +237,8 @@ const createStyles = (appTheme: typeof theme) => {
       color: theme.colors.muted,
     },
 
-    completedList: {
+    achievementsList: {
       gap: theme.spacing.sm,
-    },
-    completedName: {
-      color: theme.colors.text,
-      fontSize: theme.font.sizeMd,
-      fontWeight: theme.font.weightBold,
-      marginBottom: 4,
-    },
-    completedMeta: {
-      color: theme.colors.muted,
-      fontSize: theme.font.sizeSm,
     },
 
     /* ── Bottom Actions ────────────────────────────────────────────────── */

@@ -10,10 +10,12 @@ import { CustomLibraryScreen } from '../screens/exercises/CustomLibraryScreen';
 import { ExploreRoutinesScreen } from '../screens/exercises/ExploreRoutinesScreen';
 import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
 import { SettingsScreen } from '../screens/profile/SettingsScreen';
+import { AchievementsScreen } from '../screens/profile/AchievementsScreen';
 import { GoalsScreen } from '../screens/goals/GoalsScreen';
 import { LogWorkoutScreen } from '../screens/workouts/LogWorkoutScreen';
 import { AddExerciseScreen } from '../screens/workouts/AddExerciseScreen';
 import { SaveWorkoutScreen } from '../screens/workouts/SaveWorkoutScreen';
+import { WorkoutHistoryScreen } from '../screens/records/WorkoutHistoryScreen';
 import { CreateRoutineScreen } from '../screens/routines/CreateRoutineScreen';
 import { SelectExerciseForRoutineScreen } from '../screens/routines/SelectExerciseForRoutineScreen';
 import { useTheme } from '../context/ThemeContext';
@@ -37,6 +39,8 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Goals: undefined;
+  Achievements: undefined;
+  WorkoutHistory: { dateMs: number };
   LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string };
   SaveWorkout: {
     routineName?: string;
@@ -90,6 +94,8 @@ export default function RootNavigator() {
           />
           <Stack.Screen name="ExploreRoutines" component={ExploreRoutinesScreen}        options={{ headerShown: false }} />
           <Stack.Screen name="Goals"           component={GoalsScreen}                  options={{ title: 'Goals' }} />
+          <Stack.Screen name="Achievements"    component={AchievementsScreen}          options={{ title: 'Achievements' }} />
+          <Stack.Screen name="WorkoutHistory"  component={WorkoutHistoryScreen}         options={{ title: 'Workout History' }} />
           <Stack.Screen name="EditProfile"     component={EditProfileScreen}            options={{ presentation: 'modal', title: 'Edit Profile' }} />
           <Stack.Screen name="Settings"        component={SettingsScreen}               options={{ title: 'Settings' }} />
           <Stack.Screen name="LogWorkout"      component={LogWorkoutScreen}             options={{ headerShown: false }} />
