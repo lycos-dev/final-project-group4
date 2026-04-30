@@ -23,6 +23,9 @@ const EQUIPMENT_TYPES = [
   'Treadmill',
 ];
 
+const EXERCISE_VIEW_TYPES = ['All Exercise', 'Favorite Exercise'] as const;
+type ExerciseViewType = (typeof EXERCISE_VIEW_TYPES)[number];
+
 export const AddExerciseScreen = ({ navigation }: Props) => {
   const { theme: appTheme } = useTheme();
   const theme = appTheme;
@@ -35,6 +38,8 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMuscleModal, setShowMuscleModal] = useState(false);
+  const [selectedExerciseView, setSelectedExerciseView] = useState<ExerciseViewType>('All Exercise');
+  const [showExerciseViewModal, setShowExerciseViewModal] = useState(false);
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
@@ -42,9 +47,10 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
       const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
       const matchesMuscle = selectedMuscle === 'All Muscles' || e.muscleGroup === selectedMuscle;
       const matchesEquipment = selectedEquipment === 'All Equipment' || e.equipment === selectedEquipment;
-      return matchesSearch && matchesMuscle && matchesEquipment;
+      const matchesFavorite = selectedExerciseView === 'All Exercise' || favorites.has(e.id);
+      return matchesSearch && matchesMuscle && matchesEquipment && matchesFavorite;
     });
-  }, [exercises, search, selectedMuscle, selectedEquipment]);
+  }, [exercises, search, selectedMuscle, selectedEquipment, selectedExerciseView, favorites]);
 
   const toggleFavorite = (exerciseId: string) => {
     const newFavorites = new Set(favorites);
@@ -136,7 +142,13 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
 
       {/* Section Title */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>All Exercises</Text>
+        <TouchableOpacity
+          style={styles.sectionTitleButton}
+          onPress={() => setShowExerciseViewModal(true)}
+        >
+          <Text style={styles.sectionTitle}>{selectedExerciseView}</Text>
+          <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -290,6 +302,45 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
           </View>
         </View>
       </Modal>
+
+      {/* Exercise View Modal */}
+      <Modal
+        visible={showExerciseViewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExerciseViewModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Exercise View</Text>
+              <TouchableOpacity onPress={() => setShowExerciseViewModal(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={EXERCISE_VIEW_TYPES as readonly string[]}
+              keyExtractor={(item) => item}
+              contentContainerStyle={styles.modalListContent}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedExerciseView(item as ExerciseViewType);
+                    setShowExerciseViewModal(false);
+                  }}
+                >
+                  <Text style={styles.modalItemText}>{item}</Text>
+                  {selectedExerciseView === item && (
+                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 };
@@ -418,6 +469,12 @@ const createStyles = (appTheme: Theme) => {
   sectionHeader: {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
+  },
+  sectionTitleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: theme.spacing.xs,
   },
   sectionTitle: {
     fontSize: theme.font.sizeMd,
