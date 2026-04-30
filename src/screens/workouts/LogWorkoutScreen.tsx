@@ -114,9 +114,10 @@ const formatRestLabel = (seconds: number): string => {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 };
 
-/* ─── WheelPicker ──────────────────────────────────────────────────────────── */
-const ITEM_HEIGHT = 44;
+/* ─── WheelPicker ───────────────────────────────────────────────────────────────── */
+const ITEM_HEIGHT = 48;
 const VISIBLE     = 5;
+const WHEEL_PAD   = Math.floor(VISIBLE / 2);
 
 const WheelPicker = ({
   value,
@@ -131,35 +132,57 @@ const WheelPicker = ({
   suffix: string;
   pickStyles: ReturnType<typeof createPickStyles>;
 }) => {
-  const ref = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
   useEffect(() => {
-    setTimeout(
-      () => ref.current?.scrollTo({ y: value * ITEM_HEIGHT, animated: false }),
-      0,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: value * ITEM_HEIGHT, animated: false });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [value]);
+
+  const commit = (y: number) => {
+    const i = Math.round(y / ITEM_HEIGHT) - WHEEL_PAD;
+    const clamped = Math.max(0, Math.min(count - 1, i));
+    if (clamped !== value) onChange(clamped);
+  };
+
   return (
-    <View style={{ flex: 1, height: ITEM_HEIGHT * VISIBLE }}>
+    <View style={pickStyles.column}>
       <View style={pickStyles.selectionBand} pointerEvents="none" />
       <ScrollView
-        ref={ref}
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
-        onMomentumScrollEnd={(e) => {
-          const i = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-          onChange(Math.max(0, Math.min(count - 1, i)));
-        }}
+        directionalLockEnabled
+        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * WHEEL_PAD }}
+        onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
+        onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
       >
-        {Array.from({ length: count }).map((_, i) => (
-          <View key={i} style={pickStyles.row}>
-            <Text style={[pickStyles.rowText, i === value && pickStyles.rowTextActive]}>
-              {i} {suffix}
-            </Text>
-          </View>
-        ))}
+        {Array.from({ length: count }).map((_, item) => {
+          const isActive = item === value;
+          return (
+            <View key={`${suffix}-${item}`} style={pickStyles.row}>
+              <Text
+                style={[
+                  pickStyles.numText,
+                  isActive ? pickStyles.numTextActive : pickStyles.numTextInactive,
+                ]}
+              >
+                {String(item).padStart(2, "0")}
+              </Text>
+              <Text
+                style={[
+                  pickStyles.suffixText,
+                  isActive ? pickStyles.suffixTextActive : pickStyles.suffixTextInactive,
+                ]}
+              >
+                {suffix}
+              </Text>
+            </View>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -167,6 +190,13 @@ const WheelPicker = ({
 
 const createPickStyles = (theme: Theme) =>
   StyleSheet.create({
+    column: {
+      flex: 1,
+      minWidth: 120,
+      maxWidth: 180,
+      position: "relative",
+      height: ITEM_HEIGHT * VISIBLE,
+    },
     selectionBand: {
       position: "absolute",
       top: ITEM_HEIGHT * 2,
@@ -178,9 +208,44 @@ const createPickStyles = (theme: Theme) =>
       borderColor: theme.colors.accent,
       backgroundColor: "rgba(198, 255, 61, 0.06)",
     },
-    row: { height: ITEM_HEIGHT, alignItems: "center", justifyContent: "center" },
-    rowText: { color: theme.colors.muted, fontSize: 16, fontWeight: "600" },
-    rowTextActive: { color: theme.colors.accent, fontSize: 22, fontWeight: "800" },
+    row: {
+      height: ITEM_HEIGHT,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+    },
+    numText: {
+      color: theme.colors.muted,
+      fontSize: 18,
+      fontWeight: "700",
+      minWidth: 28,
+      textAlign: "right",
+    },
+    numTextActive: {
+      color: theme.colors.text,
+      fontSize: 22,
+      fontWeight: "900",
+    },
+    numTextInactive: {
+      color: theme.colors.muted,
+      opacity: 0.85,
+    },
+    suffixText: {
+      color: theme.colors.muted,
+      fontSize: 14,
+      fontWeight: "600",
+      minWidth: 28,
+    },
+    suffixTextActive: {
+      color: theme.colors.accent,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    suffixTextInactive: {
+      color: theme.colors.muted,
+      opacity: 0.9,
+    },
   });
 
 /* ─── Main screen ──────────────────────────────────────────────────────────── */
@@ -229,10 +294,15 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   const [showRestTimerModal, setShowRestTimerModal] = useState<string | null>(null);
   const [activeRestTimer,    setActiveRestTimer]    = useState<ActiveRestTimer | null>(null);
+  const [restTimerPaused,    setRestTimerPaused]    = useState(false);
   const [showExerciseMenu,   setShowExerciseMenu]   = useState<string | null>(null);
 
   // Duration edit modal
   const [durationOpen,  setDurationOpen]  = useState(false);
+  // Use refs for the wheel values so saveDurationModal always reads the
+  // latest committed value regardless of React batching / stale closures.
+  const draftHoursRef   = useRef(0);
+  const draftMinsRef    = useRef(0);
   const [draftHours,    setDraftHours]    = useState(0);
   const [draftMinutes,  setDraftMinutes]  = useState(0);
   const [draftStart,    setDraftStart]    = useState<Date>(new Date());
@@ -272,7 +342,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // ── Rest-timer countdown ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!activeRestTimer) return;
+    if (!activeRestTimer || restTimerPaused) return;
     const id = setInterval(() => {
       setActiveRestTimer((prev) => {
         if (!prev) return null;
@@ -281,7 +351,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [activeRestTimer]);
+  }, [activeRestTimer, restTimerPaused]);
 
   // ── Exercise helpers ──────────────────────────────────────────────────────
   const elapsed = getElapsedSeconds();
@@ -312,6 +382,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     if (set && !set.completed) {
       if (settings.vibrateOnSetComplete) Vibration.vibrate(60);
       if (exercise && exercise.restTimerDuration > 0 && settings.autoStartRestTimer) {
+        setRestTimerPaused(false);
         setActiveRestTimer({
           exerciseId,
           setId,
@@ -370,7 +441,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     setShowRestTimerModal(null);
   };
 
-  const skipRestTimer   = () => setActiveRestTimer(null);
+  const skipRestTimer   = () => { setActiveRestTimer(null); setRestTimerPaused(false); };
+  const toggleRestTimerPause = () => setRestTimerPaused((p) => !p);
   const adjustRestTimer = (delta: number) =>
     setActiveRestTimer((prev) =>
       prev ? { ...prev, remainingTime: Math.max(0, prev.remainingTime + delta) } : null,
@@ -479,15 +551,20 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   // ── Duration modal helpers ────────────────────────────────────────────────
   const openDurationModal = () => {
     const total = Math.max(0, elapsed);
-    setDraftHours(Math.floor(total / 3600));
-    setDraftMinutes(Math.floor((total % 3600) / 60));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    draftHoursRef.current = h;
+    draftMinsRef.current  = m;
+    setDraftHours(h);
+    setDraftMinutes(m);
     setDraftStart(startTime ? new Date(startTime) : new Date());
     setDurationOpen(true);
   };
 
   const saveDurationModal = () => {
-    // Always use setElapsedSeconds so elapsed is predictable and never negative
-    const totalSec = draftHours * 3600 + draftMinutes * 60;
+    // Read from refs - guaranteed to have the latest scrolled value
+    // even if React state hasn't flushed yet
+    const totalSec = draftHoursRef.current * 3600 + draftMinsRef.current * 60;
     setElapsedSeconds(totalSec);
     setDurationOpen(false);
   };
@@ -507,9 +584,15 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
           </Animated.View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Log Workout</Text>
-        <TouchableOpacity onPress={handleFinish} style={styles.finishButton}>
-          <Text style={styles.finishButtonText}>Finish</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* Settings icon beside Finish */}
+          <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7} style={styles.headerSettingsBtn}>
+            <Ionicons name="settings-outline" size={22} color={theme.colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleFinish} style={styles.finishButton}>
+            <Text style={styles.finishButtonText}>Finish</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Stats bar ──────────────────────────────────────────────────────── */}
@@ -535,14 +618,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
           <Text style={styles.statLabel}>Sets</Text>
           <Text style={styles.statValue}>{totalSets}</Text>
         </View>
-
-        <View style={styles.divider} />
-
-        {/* Settings icon — tap to open workout settings */}
-        <TouchableOpacity style={styles.statItem} onPress={() => setSettingsOpen(true)} activeOpacity={0.6}>
-          <Ionicons name="settings-outline" size={22} color={theme.colors.accent} />
-          <Text style={styles.statLabel}>Settings</Text>
-        </TouchableOpacity>
       </View>
 
       {/* ── Exercise list ───────────────────────────────────────────────────── */}
@@ -670,47 +745,70 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
       {/* ── Bottom actions ──────────────────────────────────────────────────── */}
       <View style={styles.actionsSection}>
-        <Button title="+ Add Exercise" onPress={handleAddExercise} fullWidth style={styles.addButton} />
-        <View style={styles.bottomButtons}>
-          <Button
-            title="Discard"
-            onPress={handleDiscard}
-            style={styles.halfButton}
-            variant="destructive"
-          />
-          <Button
-            title={isPaused ? "Resume" : "Pause"}
-            onPress={togglePause}
-            style={styles.halfButton}
-            variant="secondary"
-          />
-        </View>
-      </View>
-
-      {/* ── Active rest timer overlay ───────────────────────────────────────── */}
-      {activeRestTimer && (
-        <View style={styles.restTimerOverlay}>
-          <View style={styles.restTimerDisplay}>
-            <Text style={styles.restTimerDisplayTitle}>Rest Timer</Text>
-            <Text style={styles.restTimerDisplayExercise}>
-              {exercises.find((ex) => ex.id === activeRestTimer.exerciseId)?.name}
-            </Text>
-            <View style={styles.restTimerContent}>
-              <TouchableOpacity style={styles.timerAdjustButton} onPress={() => adjustRestTimer(-15)}>
-                <Text style={styles.timerAdjustText}>-15</Text>
-              </TouchableOpacity>
-              <Text style={styles.timerDisplay}>
-                {String(Math.floor(activeRestTimer.remainingTime / 60)).padStart(2, "0")}:
-                {String(activeRestTimer.remainingTime % 60).padStart(2, "0")}
-              </Text>
-              <TouchableOpacity style={styles.timerAdjustButton} onPress={() => adjustRestTimer(15)}>
-                <Text style={styles.timerAdjustText}>+15</Text>
-              </TouchableOpacity>
+        {/* ── Inline rest timer banner ────────────────────────────────────── */}
+        {activeRestTimer && (
+          <View style={styles.inlineRestTimer}>
+            {/* Progress bar */}
+            <View style={styles.restProgressTrack}>
+              <View
+                style={[
+                  styles.restProgressFill,
+                  {
+                    width: `${(activeRestTimer.remainingTime / activeRestTimer.duration) * 100}%`,
+                  },
+                ]}
+              />
             </View>
-            <Button title="Skip" onPress={skipRestTimer} fullWidth style={styles.skipButton} />
+
+            {/* Timer row */}
+            <View style={styles.inlineRestRow}>
+              {/* Label + exercise name */}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inlineRestLabel}>REST</Text>
+                <Text style={styles.inlineRestExercise} numberOfLines={1}>
+                  {exercises.find((ex) => ex.id === activeRestTimer.exerciseId)?.name}
+                </Text>
+              </View>
+
+              {/* Controls */}
+              <View style={styles.inlineRestControls}>
+                <TouchableOpacity style={styles.inlineAdjustBtn} onPress={() => adjustRestTimer(-15)}>
+                  <Text style={styles.inlineAdjustText}>−15</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.inlineTimerDisplay}>
+                  {String(Math.floor(activeRestTimer.remainingTime / 60)).padStart(2, "0")}:
+                  {String(activeRestTimer.remainingTime % 60).padStart(2, "0")}
+                </Text>
+
+                <TouchableOpacity style={styles.inlineAdjustBtn} onPress={() => adjustRestTimer(15)}>
+                  <Text style={styles.inlineAdjustText}>+15</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.inlinePauseBtn} onPress={toggleRestTimerPause}>
+                  <Ionicons
+                    name={restTimerPaused ? "play" : "pause"}
+                    size={16}
+                    color={theme.colors.accentText}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.inlineSkipBtn} onPress={skipRestTimer}>
+                  <Ionicons name="play-skip-forward" size={16} color={theme.colors.muted} />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </View>
-      )}
+        )}
+
+        <Button title="+ Add Exercise" onPress={handleAddExercise} fullWidth style={styles.addButton} />
+        <Button
+          title="Discard"
+          onPress={handleDiscard}
+          fullWidth
+          variant="destructive"
+        />
+      </View>
 
       {/* ── Exercise context menu ───────────────────────────────────────────── */}
       <Modal
@@ -809,7 +907,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </View>
       </Modal>
 
-      {/* ── Duration / start-time / pause modal ────────────────────────────── */}
+      {/* Duration / start-time / pause modal */}
       <Modal
         visible={durationOpen}
         transparent
@@ -817,62 +915,61 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         onRequestClose={() => setDurationOpen(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
-            <View style={styles.wheelRow}>
-              <WheelPicker value={draftHours} onChange={setDraftHours} count={24} suffix="hr" pickStyles={pickStyles} />
-              <WheelPicker value={draftMinutes} onChange={setDraftMinutes} count={60} suffix="min" pickStyles={pickStyles} />
+            <View style={styles.durationValuePill}>
+              <Text style={styles.durationValueText}>
+                {String(draftHours).padStart(2, "0")}h {String(draftMinutes).padStart(2, "0")}m
+              </Text>
+            </View>
+            <View style={styles.wheelCard}>
+              <View style={styles.wheelRow}>
+                <WheelPicker
+                  value={draftHours}
+                  onChange={(value) => {
+                    draftHoursRef.current = value;
+                    setDraftHours(value);
+                  }}
+                  count={24}
+                  suffix="hr"
+                  pickStyles={pickStyles}
+                />
+                <WheelPicker
+                  value={draftMinutes}
+                  onChange={(value) => {
+                    draftMinsRef.current = value;
+                    setDraftMinutes(value);
+                  }}
+                  count={60}
+                  suffix="min"
+                  pickStyles={pickStyles}
+                />
+              </View>
             </View>
 
             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
             <View style={styles.startRow}>
-              <TouchableOpacity style={styles.startBtn} onPress={() => setShowDate(true)}>
+              <TouchableOpacity
+                style={styles.startBtn}
+                onPress={() => { setDurationOpen(false); setTimeout(() => setShowDate(true), 300); }}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
                 <Text style={styles.startBtnText}>{draftStart.toDateString()}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.startBtn} onPress={() => setShowTime(true)}>
+              <TouchableOpacity
+                style={styles.startBtn}
+                onPress={() => { setDurationOpen(false); setTimeout(() => setShowTime(true), 300); }}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
                 <Text style={styles.startBtnText}>
                   {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </TouchableOpacity>
             </View>
-
-            {showDate && (
-              <DateTimePicker
-                value={draftStart}
-                mode="date"
-                maximumDate={new Date()}
-                display={Platform.OS === "ios" ? "inline" : "default"}
-                onChange={(_e, d) => {
-                  setShowDate(Platform.OS === "ios");
-                  if (d) {
-                    const next = new Date(draftStart);
-                    next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                    if (next.getTime() > Date.now()) next.setTime(Date.now());
-                    setDraftStart(next);
-                  }
-                }}
-              />
-            )}
-            {showTime && (
-              <DateTimePicker
-                value={draftStart}
-                mode="time"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(_e, d) => {
-                  setShowTime(Platform.OS === "ios");
-                  if (d) {
-                    const next = new Date(draftStart);
-                    next.setHours(d.getHours(), d.getMinutes());
-                    if (next.getTime() > Date.now()) next.setTime(Date.now());
-                    setDraftStart(next);
-                  }
-                }}
-              />
-            )}
 
             <TouchableOpacity
               style={[styles.pauseBtn, isPaused && styles.pauseBtnActive]}
@@ -891,8 +988,93 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
             <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
               <Button title="Cancel" variant="ghost" onPress={() => setDurationOpen(false)} style={{ flex: 1 }} />
-              <Button title="Save"   onPress={saveDurationModal}                             style={{ flex: 1 }} />
+              <Button title="Save"   onPress={saveDurationModal} style={{ flex: 1 }} />
             </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Date picker - closes duration modal first, re-opens it when done */}
+      <Modal
+        visible={showDate}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}
+      >
+        <Pressable
+          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
+          onPress={() => { setShowDate(false); setDurationOpen(true); }}
+        >
+          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Select Date</Text>
+            <DateTimePicker
+              value={draftStart}
+              mode="date"
+              maximumDate={new Date()}
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              onChange={(_e, d) => {
+                if (d) {
+                  const next = new Date(draftStart);
+                  next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                  if (next.getTime() > Date.now()) next.setTime(Date.now());
+                  setDraftStart(next);
+                }
+                if (Platform.OS !== "ios") {
+                  setShowDate(false);
+                  setTimeout(() => setDurationOpen(true), 200);
+                }
+              }}
+            />
+            {Platform.OS === "ios" && (
+              <Button
+                title="Done"
+                onPress={() => { setShowDate(false); setDurationOpen(true); }}
+                fullWidth
+                style={{ marginTop: theme.spacing.md }}
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Time picker - closes duration modal first, re-opens it when done */}
+      <Modal
+        visible={showTime}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}
+      >
+        <Pressable
+          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
+          onPress={() => { setShowTime(false); setDurationOpen(true); }}
+        >
+          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Select Time</Text>
+            <DateTimePicker
+              value={draftStart}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_e, d) => {
+                if (d) {
+                  const next = new Date(draftStart);
+                  next.setHours(d.getHours(), d.getMinutes());
+                  if (next.getTime() > Date.now()) next.setTime(Date.now());
+                  setDraftStart(next);
+                }
+                if (Platform.OS !== "ios") {
+                  setShowTime(false);
+                  setTimeout(() => setDurationOpen(true), 200);
+                }
+              }}
+            />
+            {Platform.OS === "ios" && (
+              <Button
+                title="Done"
+                onPress={() => { setShowTime(false); setDurationOpen(true); }}
+                fullWidth
+                style={{ marginTop: theme.spacing.md }}
+              />
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -967,9 +1149,18 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         visible={settingsOpen}
         transparent
         animationType="slide"
-        onRequestClose={() => setSettingsOpen(false)}
+        onRequestClose={() => {
+          setRestPickerOpen(false);
+          setSettingsOpen(false);
+        }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSettingsOpen(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setRestPickerOpen(false);
+            setSettingsOpen(false);
+          }}
+        >
           <Pressable style={[styles.modalContent, { maxHeight: "90%" }]} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Workout Settings</Text>
@@ -991,7 +1182,14 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               </View>
 
               {/* Default rest timer */}
-              <TouchableOpacity style={styles.settingRow} onPress={() => setRestPickerOpen(true)}>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => {
+                  // Avoid stacked transparent modals that can trap touches on Android.
+                  setSettingsOpen(false);
+                  setTimeout(() => setRestPickerOpen(true), 120);
+                }}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.settingTitle}>Default rest timer</Text>
                   <Text style={styles.settingHint}>Applied to new exercises you add</Text>
@@ -1004,72 +1202,87 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
               {/* Auto-start rest timer */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Auto-start rest timer</Text>
                   <Text style={styles.settingHint}>Begin countdown when a set is completed</Text>
                 </View>
-                <Switch
-                  value={settings.autoStartRestTimer}
-                  onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.autoStartRestTimer}
+                    onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.autoStartRestTimer ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Count warm-ups in volume */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Count warm-ups in volume</Text>
                   <Text style={styles.settingHint}>Include W sets in total volume</Text>
                 </View>
-                <Switch
-                  value={settings.countWarmupInVolume}
-                  onValueChange={(v) => updateSettings({ countWarmupInVolume: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.countWarmupInVolume}
+                    onValueChange={(v) => updateSettings({ countWarmupInVolume: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.countWarmupInVolume ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Vibrate on set complete */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Vibrate on set complete</Text>
                   <Text style={styles.settingHint}>Short haptic when you tick a set</Text>
                 </View>
-                <Switch
-                  value={settings.vibrateOnSetComplete}
-                  onValueChange={(v) => updateSettings({ vibrateOnSetComplete: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.vibrateOnSetComplete}
+                    onValueChange={(v) => updateSettings({ vibrateOnSetComplete: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.vibrateOnSetComplete ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Show finish summary */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Show finish summary</Text>
                   <Text style={styles.settingHint}>Confirm dialog with stats when finishing</Text>
                 </View>
-                <Switch
-                  value={settings.showFinishSummary}
-                  onValueChange={(v) => updateSettings({ showFinishSummary: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.showFinishSummary}
+                    onValueChange={(v) => updateSettings({ showFinishSummary: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.showFinishSummary ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               {/* Confirm before discard */}
               <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.settingMain}>
                   <Text style={styles.settingTitle}>Confirm before discard</Text>
                   <Text style={styles.settingHint}>Ask before clearing the workout</Text>
                 </View>
-                <Switch
-                  value={settings.confirmBeforeDiscard}
-                  onValueChange={(v) => updateSettings({ confirmBeforeDiscard: v })}
-                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                  thumbColor={Platform.OS === "android" ? theme.colors.accent : undefined}
-                />
+                <View style={styles.settingSwitchWrap}>
+                  <Switch
+                    value={settings.confirmBeforeDiscard}
+                    onValueChange={(v) => updateSettings({ confirmBeforeDiscard: v })}
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                    thumbColor={Platform.OS === "android" ? (settings.confirmBeforeDiscard ? theme.colors.accent : theme.colors.muted) : undefined}
+                    ios_backgroundColor={theme.colors.border}
+                  />
+                </View>
               </View>
 
               <Button
@@ -1146,6 +1359,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeLg,
     fontWeight: theme.font.weightBold,
     color: theme.colors.text,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+  },
+  headerSettingsBtn: {
+    padding: theme.spacing.sm,
   },
   finishButton: {
     backgroundColor: theme.colors.accent,
@@ -1377,52 +1598,85 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: theme.font.weightBold,
   },
 
-  restTimerOverlay: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: theme.spacing.lg,
-  },
-  restTimerDisplay: {
+  /* Inline rest timer banner */
+  inlineRestTimer: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    overflow: "hidden",
+    marginBottom: theme.spacing.sm,
+  },
+  restProgressTrack: {
+    height: 3,
+    backgroundColor: theme.colors.border,
     width: "100%",
+  },
+  restProgressFill: {
+    height: 3,
+    backgroundColor: theme.colors.accent,
+  },
+  inlineRestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  inlineRestLabel: {
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    color: theme.colors.accent,
+    letterSpacing: 1.2,
+  },
+  inlineRestExercise: {
+    fontSize: theme.font.sizeXs,
+    color: theme.colors.muted,
+    marginTop: 1,
+  },
+  inlineRestControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  inlineAdjustBtn: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.bg,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  restTimerDisplayTitle: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    textAlign: "center",
-  },
-  restTimerDisplayExercise: {
-    color: theme.colors.muted,
+  inlineAdjustText: {
+    color: theme.colors.accent,
     fontSize: theme.font.sizeSm,
-    textAlign: "center",
-    marginTop: 4,
+    fontWeight: theme.font.weightBold,
   },
-  restTimerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: theme.spacing.lg,
-  },
-  timerAdjustButton: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.bg,
-  },
-  timerAdjustText: { color: theme.colors.accent, fontWeight: theme.font.weightBold },
-  timerDisplay: {
+  inlineTimerDisplay: {
     color: theme.colors.text,
-    fontSize: 36,
+    fontSize: 22,
     fontWeight: theme.font.weightBlack,
+    minWidth: 58,
+    textAlign: "center",
   },
-  skipButton: {},
+  inlinePauseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inlineSkipBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   menuOverlay: {
     flex: 1,
@@ -1454,6 +1708,25 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 
   /* Duration modal */
+  durationModalContent: {
+    maxHeight: "88%",
+  },
+  durationValuePill: {
+    alignSelf: "center",
+    marginBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 999,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  durationValueText: {
+    color: theme.colors.accent,
+    fontWeight: theme.font.weightBold,
+    fontSize: theme.font.sizeSm,
+    letterSpacing: 0.4,
+  },
   fieldLabel: {
     color: theme.colors.muted,
     fontSize: 11,
@@ -1461,7 +1734,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: theme.spacing.sm,
   },
-  wheelRow: { flexDirection: "row", gap: theme.spacing.md },
+  wheelCard: {
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  wheelRow: { flexDirection: "row", gap: theme.spacing.md, justifyContent: "center" },
   startRow: { flexDirection: "row", gap: theme.spacing.sm },
   startBtn: {
     flex: 1,
@@ -1550,10 +1831,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+  },
+  settingMain: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: theme.spacing.sm,
+  },
+  settingSwitchWrap: {
+    marginLeft: theme.spacing.sm,
+    flexShrink: 0,
+    alignSelf: "center",
+    minWidth: 56,
+    alignItems: "flex-end",
   },
   settingTitle: {
     color: theme.colors.text,
