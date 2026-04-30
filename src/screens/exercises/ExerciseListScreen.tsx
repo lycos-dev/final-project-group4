@@ -12,6 +12,7 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,6 +25,7 @@ import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 import { useRoutine } from '../../context/RoutineContext';
 import { Routine, RoutineFolder } from '../../types';
+import { useWorkout } from '../../context/WorkoutContext';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -183,6 +185,37 @@ export const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
+  const { isActive, exercises, setMinimized, discardWorkout } = useWorkout();
+  const handleStartNewWorkout = () => {
+    if (!isActive) {
+      nav.navigate('LogWorkout', { exercisesToAdd: [] });
+      return;
+    }
+
+    Alert.alert(
+      'Workout in progress',
+      'You already have an active workout. Do you want to continue it or start a new one?',
+      [
+        {
+          text: 'Continue Current',
+          onPress: () => {
+            setMinimized(false);
+            nav.navigate('LogWorkout', {});
+          },
+        },
+        {
+          text: 'Start New',
+          style: 'destructive',
+          onPress: () => {
+            if (exercises.length > 0) discardWorkout();
+            nav.navigate('LogWorkout', { exercisesToAdd: [] });
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  };
+
 
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
@@ -416,7 +449,7 @@ export const ExerciseListScreen = () => {
 
           <Button
             title="Start New Workout"
-            onPress={() => nav.navigate('LogWorkout', { exercisesToAdd: [] })}
+            onPress={handleStartNewWorkout}
             fullWidth
             style={styles.primaryButton}
           />

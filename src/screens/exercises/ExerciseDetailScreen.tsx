@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,6 @@ import {
   Alert,
   ImageBackground,
   TouchableOpacity,
-  ScrollView,
-  Animated,
-  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,21 +16,28 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { IconButton } from '../../components/ui/IconButton';
 import { useExercises } from '../../context/ExerciseContext';
+import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme } from '../../theme/theme';
+import { Theme } from '../../theme/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
 type R   = RouteProp<RootStackParamList, 'ExerciseDetail'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 // ─── Hero image ───────────────────────────────────────────────────────────────
-const ExerciseHeroImage = ({ uri, name }: { uri: string; name: string }) => (
+const ExerciseHeroImage = ({
+  uri,
+  name,
+  heroStyles,
+}: {
+  uri: string;
+  name: string;
+  heroStyles: ReturnType<typeof createHeroStyles>;
+}) => (
   <View style={heroStyles.container}>
     <ImageBackground
       source={{ uri }}
       style={heroStyles.image}
-      imageStyle={{ borderRadius: theme.radius.lg }}
+      imageStyle={heroStyles.imageBorder}
       resizeMode="cover"
       accessibilityLabel={`Demonstration of ${name}`}
     >
@@ -44,7 +48,7 @@ const ExerciseHeroImage = ({ uri, name }: { uri: string; name: string }) => (
     </ImageBackground>
   </View>
 );
-const heroStyles = StyleSheet.create({
+const createHeroStyles = (theme: Theme) => StyleSheet.create({
   container: {
     marginBottom: theme.spacing.lg,
     borderRadius: theme.radius.lg,
@@ -56,6 +60,7 @@ const heroStyles = StyleSheet.create({
     elevation: 6,
   },
   image: { width: '100%', height: 220, justifyContent: 'flex-end' },
+  imageBorder: { borderRadius: theme.radius.lg },
   gradient: {
     height: 80,
     borderBottomLeftRadius: theme.radius.lg,
@@ -64,7 +69,15 @@ const heroStyles = StyleSheet.create({
 });
 
 // ─── Step row ─────────────────────────────────────────────────────────────────
-const StepRow = ({ index, text }: { index: number; text: string }) => (
+const StepRow = ({
+  index,
+  text,
+  stepStyles,
+}: {
+  index: number;
+  text: string;
+  stepStyles: ReturnType<typeof createStepStyles>;
+}) => (
   <View style={stepStyles.row}>
     <View style={stepStyles.badge}>
       <Text style={stepStyles.badgeText}>{index + 1}</Text>
@@ -72,7 +85,7 @@ const StepRow = ({ index, text }: { index: number; text: string }) => (
     <Text style={stepStyles.text}>{text}</Text>
   </View>
 );
-const stepStyles = StyleSheet.create({
+const createStepStyles = (theme: Theme) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -110,8 +123,9 @@ type TabName = typeof TABS[number];
 interface TabBarProps {
   activeTab: TabName;
   onSelect: (t: TabName) => void;
+  tabBarStyles: ReturnType<typeof createTabBarStyles>;
 }
-const TabBar = ({ activeTab, onSelect }: TabBarProps) => (
+const TabBar = ({ activeTab, onSelect, tabBarStyles }: TabBarProps) => (
   <View style={tabBarStyles.bar}>
     {TABS.map((tab) => {
       const active = tab === activeTab;
@@ -131,7 +145,7 @@ const TabBar = ({ activeTab, onSelect }: TabBarProps) => (
     })}
   </View>
 );
-const tabBarStyles = StyleSheet.create({
+const createTabBarStyles = (theme: Theme) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -167,15 +181,26 @@ const tabBarStyles = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export const ExerciseDetailScreen = () => {
+  const { theme: appTheme } = useTheme();
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const { getById, removeExercise } = useExercises();
   const exercise = getById(params.exerciseId);
+  const styles = useMemo(() => createStyles(appTheme), [appTheme]);
+  const heroStyles = useMemo(() => createHeroStyles(appTheme), [appTheme]);
+  const stepStyles = useMemo(() => createStepStyles(appTheme), [appTheme]);
+  const tabBarStyles = useMemo(() => createTabBarStyles(appTheme), [appTheme]);
 
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
 
   useLayoutEffect(() => {
     nav.setOptions({
+      headerBackVisible: false,
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => nav.goBack()} style={styles.headerBackBtn} activeOpacity={0.75}>
+          <Text style={styles.headerBackText}>&lt; Go back</Text>
+        </TouchableOpacity>
+      ),
       headerRight: () =>
         exercise ? (
           <IconButton
@@ -184,7 +209,7 @@ export const ExerciseDetailScreen = () => {
           />
         ) : null,
     });
-  }, [nav, exercise]);
+  }, [nav, exercise, styles]);
 
   if (!exercise) {
     return (
@@ -209,10 +234,10 @@ export const ExerciseDetailScreen = () => {
     <Screen scroll>
       {/* ── Hero Image ───────────────────────────────────────────────── */}
       {exercise.imageUrl ? (
-        <ExerciseHeroImage uri={exercise.imageUrl} name={exercise.name} />
+        <ExerciseHeroImage uri={exercise.imageUrl} name={exercise.name} heroStyles={heroStyles} />
       ) : (
         <View style={styles.imageFallback}>
-          <Ionicons name="image-outline" size={40} color={theme.colors.border} />
+          <Ionicons name="image-outline" size={40} color={appTheme.colors.border} />
           <Text style={styles.imageFallbackText}>No image added yet</Text>
         </View>
       )}
@@ -221,17 +246,17 @@ export const ExerciseDetailScreen = () => {
       <Text style={styles.title}>{exercise.name}</Text>
       <View style={styles.metaRow}>
         <View style={styles.metaChip}>
-          <Ionicons name="body-outline" size={13} color={theme.colors.accent} />
+          <Ionicons name="body-outline" size={13} color={appTheme.colors.accent} />
           <Text style={styles.metaChipText}>{exercise.muscleGroup}</Text>
         </View>
         <View style={styles.metaChip}>
-          <Ionicons name="barbell-outline" size={13} color={theme.colors.accent} />
+          <Ionicons name="barbell-outline" size={13} color={appTheme.colors.accent} />
           <Text style={styles.metaChipText}>{exercise.equipment}</Text>
         </View>
       </View>
 
       {/* ── Tab Bar ──────────────────────────────────────────────────── */}
-      <TabBar activeTab={activeTab} onSelect={setActiveTab} />
+      <TabBar activeTab={activeTab} onSelect={setActiveTab} tabBarStyles={tabBarStyles} />
 
       {/* ── Overview tab ─────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
@@ -266,14 +291,14 @@ export const ExerciseDetailScreen = () => {
             title="Edit Exercise"
             onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
             fullWidth
-            style={{ marginTop: theme.spacing.xl }}
+            style={{ marginTop: appTheme.spacing.xl }}
           />
           <Button
             title="Delete Exercise"
             variant="destructive"
             onPress={handleDelete}
             fullWidth
-            style={{ marginTop: theme.spacing.md }}
+            style={{ marginTop: appTheme.spacing.md }}
           />
         </View>
       )}
@@ -283,7 +308,7 @@ export const ExerciseDetailScreen = () => {
         <View>
           {exercise.steps.length === 0 ? (
             <View style={styles.emptyTab}>
-              <Ionicons name="list-outline" size={44} color={theme.colors.border} />
+              <Ionicons name="list-outline" size={44} color={appTheme.colors.border} />
               <Text style={styles.emptyTabTitle}>No instructions yet</Text>
               <Text style={styles.emptyTabSub}>
                 Edit this exercise to add step-by-step instructions.
@@ -291,7 +316,7 @@ export const ExerciseDetailScreen = () => {
               <Button
                 title="Add Instructions"
                 onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
-                style={{ marginTop: theme.spacing.lg }}
+                style={{ marginTop: appTheme.spacing.lg }}
               />
             </View>
           ) : (
@@ -302,7 +327,7 @@ export const ExerciseDetailScreen = () => {
               </View>
               <Card style={styles.stepsCard}>
                 {exercise.steps.map((step, i) => (
-                  <StepRow key={i} index={i} text={step} />
+                  <StepRow key={i} index={i} text={step} stepStyles={stepStyles} />
                 ))}
               </Card>
             </View>
@@ -316,7 +341,7 @@ export const ExerciseDetailScreen = () => {
           <MaterialCommunityIcons
             name="chart-timeline-variant"
             size={44}
-            color={theme.colors.border}
+            color={appTheme.colors.border}
           />
           <Text style={styles.emptyTabTitle}>No history yet</Text>
           <Text style={styles.emptyTabSub}>
@@ -328,7 +353,7 @@ export const ExerciseDetailScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   imageFallback: {
     height: 160,
     borderRadius: theme.radius.lg,
@@ -349,6 +374,15 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBlack,
     letterSpacing: -0.5,
     marginBottom: theme.spacing.sm,
+  },
+  headerBackBtn: {
+    paddingVertical: 6,
+    paddingRight: theme.spacing.sm,
+  },
+  headerBackText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
   },
   metaRow: {
     flexDirection: 'row',

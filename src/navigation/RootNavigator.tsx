@@ -49,7 +49,7 @@ export type RootStackParamList = {
     totalSets: number;
     completedAt: number;
   };
-  AddExercise: undefined;
+  AddExercise: { replaceExerciseId?: string } | undefined;
   CreateRoutine: { routineId?: string; targetFolderId?: string };
   SelectExerciseForRoutine: undefined;
 };
@@ -85,7 +85,15 @@ export default function RootNavigator() {
       ) : (
         <>
           <Stack.Screen name="Tabs"           component={BottomTabs}                    options={{ headerShown: false }} />
-          <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen}          options={{ title: 'Exercise', gestureEnabled: false }} />
+          <Stack.Screen
+            name="ExerciseDetail"
+            component={ExerciseDetailScreen}
+            options={{
+              title: 'Exercise',
+              gestureEnabled: false,
+              headerBackVisible: false,
+            }}
+          />
           <Stack.Screen name="ExerciseForm"   component={ExerciseFormScreen}            options={{ presentation: 'modal', title: 'Exercise' }} />
           <Stack.Screen
             name="CustomLibrary"

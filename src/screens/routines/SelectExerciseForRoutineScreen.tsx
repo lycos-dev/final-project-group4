@@ -6,6 +6,7 @@ import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { useExercises } from '../../context/ExerciseContext';
 import { useRoutine } from '../../context/RoutineContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
@@ -25,10 +26,10 @@ const EQUIPMENT_TYPES = [
 export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
   const { exercises } = useExercises();
   const { addExerciseToRoutine, currentRoutine, setCurrentRoutine, updateRoutine } = useRoutine();
+  const { favoriteExerciseIds, toggleFavoriteExercise } = useWorkout();
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
   const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMuscleModal, setShowMuscleModal] = useState(false);
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set());
@@ -44,16 +45,6 @@ export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
       return passes;
     });
   }, [exercises, search, selectedMuscle, selectedEquipment]);
-
-  const toggleFavorite = (exerciseId: string) => {
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(exerciseId)) {
-      newFavorites.delete(exerciseId);
-    } else {
-      newFavorites.add(exerciseId);
-    }
-    setFavorites(newFavorites);
-  };
 
   const toggleExerciseSelection = (exerciseId: string) => {
     const newSelected = new Set(selectedExercises);
@@ -203,14 +194,14 @@ export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation();
-                  toggleFavorite(item.id);
+                  toggleFavoriteExercise(item.id);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons
-                  name={favorites.has(item.id) ? 'heart' : 'heart-outline'}
+                  name={favoriteExerciseIds.has(item.id) ? 'heart' : 'heart-outline'}
                   size={24}
-                  color={favorites.has(item.id) ? theme.colors.accent : theme.colors.muted}
+                  color={favoriteExerciseIds.has(item.id) ? theme.colors.accent : theme.colors.muted}
                 />
               </TouchableOpacity>
               {selectedExercises.has(item.id) && (

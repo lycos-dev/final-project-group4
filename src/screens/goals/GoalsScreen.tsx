@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -301,6 +302,12 @@ export const GoalsScreen = () => {
 
       <Modal transparent visible={showCreateModal} animationType="fade" onRequestClose={closeCreateModal}>
         <View style={styles.modalBackdrop}>
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>Create Goal</Text>
@@ -389,6 +396,7 @@ export const GoalsScreen = () => {
 
             <Button title="Create Goal" onPress={onCreateGoal} fullWidth />
           </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -606,6 +614,11 @@ const createStyles = (appTheme: Theme) => {
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.lg,
+  },
+  modalScroll: { width: '100%' },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   modalTitle: {
     color: theme.colors.text,

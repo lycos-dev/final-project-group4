@@ -4,8 +4,10 @@ import React, {
   useState,
   useRef,
   useCallback,
+  useEffect,
   ReactNode,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Exercise } from '../types';
 
 export type SetType = 'normal' | 'warmup' | 'failure';
@@ -95,6 +97,8 @@ interface WorkoutContextType {
   // ── settings ──────────────────────────────────────────────────────────────
   settings: WorkoutSettings;
   updateSettings: (patch: Partial<WorkoutSettings>) => void;
+  favoriteExerciseIds: Set<string>;
+  toggleFavoriteExercise: (exerciseId: string) => void;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -109,10 +113,33 @@ const DEFAULT_SETTINGS: WorkoutSettings = {
   showFinishSummary: true,
 };
 
+const FAVORITES_KEY = '@nexa/favorite_exercises';
+
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [exercises, setExercisesState] = useState<LogExercise[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
+  const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let mounted = true;
+    const loadFavorites = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(FAVORITES_KEY);
+        if (!mounted || !raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setFavoriteExerciseIds(new Set(parsed.filter((id) => typeof id === 'string')));
+        }
+      } catch {
+        // Ignore restore failures; favorites remain empty.
+      }
+    };
+    loadFavorites();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // ── timer internals ───────────────────────────────────────────────────────
   const [isActive, setIsActive] = useState(false);
@@ -342,6 +369,18 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     setSettings((prev) => ({ ...prev, ...patch }));
   };
 
+  const toggleFavoriteExercise = (exerciseId: string) => {
+    setFavoriteExerciseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(exerciseId)) next.delete(exerciseId);
+      else next.add(exerciseId);
+      AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(next))).catch(() => {
+        // Keep UI responsive even if persistence fails.
+      });
+      return next;
+    });
+  };
+
   return (
     <WorkoutContext.Provider
       value={{
@@ -367,6 +406,8 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         ensureStarted,
         settings,
         updateSettings,
+        favoriteExerciseIds,
+        toggleFavoriteExercise,
       }}
     >
       {children}

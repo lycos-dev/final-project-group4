@@ -57,19 +57,19 @@ const REST_TIMER_OPTIONS = [
 const SET_TYPE_INFO: Record<SetType | "remove", { title: string; body: string }> = {
   normal: {
     title: "Normal Set",
-    body: "A standard working set. Counted as a regular numbered set in your workout volume.",
+    body: "Normal sets refer to working sets used for your main effort.",
   },
   warmup: {
     title: "Warm-Up Set",
-    body: 'A lighter prep set used to ready your muscles. Marked with a yellow "W" and not counted as a working set.',
+    body: 'Warm-up sets refer to lighter prep sets before working sets.',
   },
   failure: {
     title: "Failure Set",
-    body: 'A set taken to (or near) muscular failure. Marked with a red "F" so you can spot maximum-effort sets.',
+    body: "Failure sets refer to max-effort sets performed near muscular failure.",
   },
   remove: {
     title: "Remove Set",
-    body: "Deletes this set entirely from the exercise.",
+    body: "Remove set deletes this set from the exercise.",
   },
 };
 
@@ -296,6 +296,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   const [activeRestTimer,    setActiveRestTimer]    = useState<ActiveRestTimer | null>(null);
   const [restTimerPaused,    setRestTimerPaused]    = useState(false);
   const [showExerciseMenu,   setShowExerciseMenu]   = useState<string | null>(null);
+  const [reorderOpen,        setReorderOpen]        = useState(false);
+  const [reorderTargetId,    setReorderTargetId]    = useState<string | null>(null);
 
   // Duration edit modal
   const [durationOpen,  setDurationOpen]  = useState(false);
@@ -311,7 +313,6 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // Set-type modal
   const [setTypeTarget, setSetTypeTarget] = useState<{ exerciseId: string; setId: string } | null>(null);
-  const [setTypeInfo,   setSetTypeInfo]   = useState<SetType | "remove" | null>(null);
 
   // Settings modal
   const [settingsOpen,   setSettingsOpen]   = useState(false);
@@ -366,6 +367,22 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     );
   };
 
+  const areAllSetsCompleted = (exercise: LogExercise) =>
+    exercise.sets.length > 0 && exercise.sets.every((set) => set.completed);
+
+  const toggleExerciseCompletion = (exerciseId: string) => {
+    setExercises((prev: LogExercise[]) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const shouldCompleteAll = !areAllSetsCompleted(exercise);
+        return {
+          ...exercise,
+          sets: exercise.sets.map((set) => ({ ...set, completed: shouldCompleteAll })),
+        };
+      }),
+    );
+  };
+
   const toggleSetCompletion = (exerciseId: string, setId: string) => {
     const exercise = exercises.find((ex) => ex.id === exerciseId);
     const set      = exercise?.sets.find((s) => s.id === setId);
@@ -415,6 +432,28 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     );
   };
 
+  const moveExercise = (exerciseId: string, direction: "up" | "down") => {
+    setExercises((prev: LogExercise[]) => {
+      const index = prev.findIndex((exercise) => exercise.id === exerciseId);
+      if (index < 0) return prev;
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(index, 1);
+      next.splice(target, 0, picked);
+      return next;
+    });
+  };
+
+  const handleReorderExercise = (exerciseId: string) => {
+    setReorderTargetId(exerciseId);
+    setReorderOpen(true);
+  };
+
+  const handleReplaceExercise = (exerciseId: string) => {
+    navigation.navigate("AddExercise", { replaceExerciseId: exerciseId });
+  };
+
   const setSetType = (exerciseId: string, setId: string, type: SetType | "remove") => {
     if (type === "remove") {
       setExercises((prev: LogExercise[]) =>
@@ -431,6 +470,10 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         ),
       );
     }
+    setSetTypeTarget(null);
+  };
+
+  const closeSetTypeModal = () => {
     setSetTypeTarget(null);
   };
 
@@ -684,7 +727,14 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                       {settings.weightUnit.toUpperCase()}
                     </Text>
                     <Text style={[styles.setGridCell, styles.setLabel]}>REPS</Text>
-                    <View style={styles.setCheckbox} />
+                    <TouchableOpacity
+                      style={[styles.setCheckbox, areAllSetsCompleted(exercise) && styles.setCheckboxChecked]}
+                      onPress={() => toggleExerciseCompletion(exercise.id)}
+                    >
+                      {areAllSetsCompleted(exercise) && (
+                        <Ionicons name="checkmark" size={16} color={theme.colors.accentText} />
+                      )}
+                    </TouchableOpacity>
                   </View>
 
                   {exercise.sets.map((set, index) => {
@@ -834,11 +884,25 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <Ionicons name="information-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>View Exercise Details</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => setShowExerciseMenu(null)}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const exId = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (exId) handleReorderExercise(exId);
+              }}
+            >
               <Ionicons name="swap-vertical" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Reorder Exercises</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => setShowExerciseMenu(null)}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const exId = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (exId) handleReplaceExercise(exId);
+              }}
+            >
               <MaterialCommunityIcons name="sync" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Replace Exercise</Text>
             </TouchableOpacity>
@@ -916,6 +980,10 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
           <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: theme.spacing.sm }}
+            >
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
@@ -990,6 +1058,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <Button title="Cancel" variant="ghost" onPress={() => setDurationOpen(false)} style={{ flex: 1 }} />
               <Button title="Save"   onPress={saveDurationModal} style={{ flex: 1 }} />
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1084,9 +1153,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         visible={setTypeTarget !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setSetTypeTarget(null)}
+        onRequestClose={closeSetTypeModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSetTypeTarget(null)}>
+        <Pressable style={styles.modalOverlay} onPress={closeSetTypeModal}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Select Set Type</Text>
             {setTypeOptions.map((opt) => (
@@ -1101,7 +1170,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.helpBtn}
-                  onPress={() => setSetTypeInfo(opt.key)}
+                  onPress={() => Alert.alert(SET_TYPE_INFO[opt.key].title, SET_TYPE_INFO[opt.key].body)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons name="help-circle-outline" size={20} color={theme.colors.muted} />
@@ -1111,7 +1180,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             <Button
               title="Cancel"
               variant="ghost"
-              onPress={() => setSetTypeTarget(null)}
+              onPress={closeSetTypeModal}
               fullWidth
               style={{ marginTop: theme.spacing.sm }}
             />
@@ -1119,27 +1188,59 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </Pressable>
       </Modal>
 
-      {/* ── Set-type info ───────────────────────────────────────────────────── */}
       <Modal
-        visible={setTypeInfo !== null}
+        visible={reorderOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setSetTypeInfo(null)}
+        onRequestClose={() => setReorderOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSetTypeInfo(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setReorderOpen(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            {setTypeInfo && (
-              <>
-                <Text style={styles.modalTitle}>{SET_TYPE_INFO[setTypeInfo].title}</Text>
-                <Text style={styles.modalBody}>{SET_TYPE_INFO[setTypeInfo].body}</Text>
-                <Button
-                  title="Got it"
-                  onPress={() => setSetTypeInfo(null)}
-                  fullWidth
-                  style={{ marginTop: theme.spacing.md }}
-                />
-              </>
-            )}
+            <Text style={styles.modalTitle}>Reorder Exercises</Text>
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {exercises.map((exercise, index) => {
+                const selected = reorderTargetId === exercise.id;
+                return (
+                  <TouchableOpacity
+                    key={exercise.id}
+                    style={[styles.reorderRow, selected && styles.reorderRowSelected]}
+                    onPress={() => setReorderTargetId(exercise.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.reorderName, selected && { color: theme.colors.accent }]}>
+                      {exercise.name}
+                    </Text>
+                    {selected && (
+                      <View style={styles.reorderButtons}>
+                        <TouchableOpacity
+                          style={[styles.reorderBtn, index === 0 && styles.reorderBtnDisabled]}
+                          onPress={() => moveExercise(exercise.id, "up")}
+                          disabled={index === 0}
+                        >
+                          <Ionicons name="arrow-up" size={16} color={theme.colors.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderBtn,
+                            index === exercises.length - 1 && styles.reorderBtnDisabled,
+                          ]}
+                          onPress={() => moveExercise(exercise.id, "down")}
+                          disabled={index === exercises.length - 1}
+                        >
+                          <Ionicons name="arrow-down" size={16} color={theme.colors.text} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <Button
+              title="Done"
+              onPress={() => setReorderOpen(false)}
+              fullWidth
+              style={{ marginTop: theme.spacing.md }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1213,6 +1314,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.autoStartRestTimer ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1230,6 +1332,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.countWarmupInVolume ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1247,23 +1350,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.vibrateOnSetComplete ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
-                  />
-                </View>
-              </View>
-
-              {/* Show finish summary */}
-              <View style={styles.settingRow}>
-                <View style={styles.settingMain}>
-                  <Text style={styles.settingTitle}>Show finish summary</Text>
-                  <Text style={styles.settingHint}>Confirm dialog with stats when finishing</Text>
-                </View>
-                <View style={styles.settingSwitchWrap}>
-                  <Switch
-                    value={settings.showFinishSummary}
-                    onValueChange={(v) => updateSettings({ showFinishSummary: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.showFinishSummary ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1281,6 +1368,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.confirmBeforeDiscard ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1800,6 +1888,43 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
+  reorderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+  },
+  reorderRowSelected: {
+    backgroundColor: "rgba(198, 255, 61, 0.08)",
+  },
+  reorderName: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  reorderButtons: {
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+  },
+  reorderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  reorderBtnDisabled: {
+    opacity: 0.35,
+  },
 
   /* Settings modal */
   settingLabel: {
@@ -1830,8 +1955,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   segmentTextActive:  { color: theme.colors.accentText },
   settingRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
@@ -1843,11 +1967,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingRight: theme.spacing.sm,
   },
   settingSwitchWrap: {
-    marginLeft: theme.spacing.sm,
+    marginLeft: "auto",
     flexShrink: 0,
     alignSelf: "center",
-    minWidth: 56,
+    minWidth: 68,
     alignItems: "flex-end",
+  },
+  iosSwitch: {
+    transform: [{ scaleX: 0.92 }, { scaleY: 0.92 }],
   },
   settingTitle: {
     color: theme.colors.text,
