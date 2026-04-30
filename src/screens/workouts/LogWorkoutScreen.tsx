@@ -156,6 +156,7 @@ const WheelPicker = ({
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         directionalLockEnabled
+        nestedScrollEnabled
         contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * WHEEL_PAD }}
         onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
         onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
@@ -980,10 +981,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
           <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: theme.spacing.sm }}
-            >
+            <View style={{ paddingBottom: theme.spacing.sm }}>
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
@@ -1021,7 +1019,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             <View style={styles.startRow}>
               <TouchableOpacity
                 style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowDate(true), 300); }}
+                onPress={() => { setDurationOpen(false); setTimeout(() => setShowDate(true), 100); }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
@@ -1029,7 +1027,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowTime(true), 300); }}
+                onPress={() => { setDurationOpen(false); setTimeout(() => setShowTime(true), 100); }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
@@ -1058,95 +1056,50 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <Button title="Cancel" variant="ghost" onPress={() => setDurationOpen(false)} style={{ flex: 1 }} />
               <Button title="Save"   onPress={saveDurationModal} style={{ flex: 1 }} />
             </View>
-            </ScrollView>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* Date picker - closes duration modal first, re-opens it when done */}
-      <Modal
-        visible={showDate}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}
-      >
-        <Pressable
-          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
-          onPress={() => { setShowDate(false); setDurationOpen(true); }}
-        >
-          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Select Date</Text>
-            <DateTimePicker
-              value={draftStart}
-              mode="date"
-              maximumDate={new Date()}
-              display={Platform.OS === "ios" ? "inline" : "default"}
-              onChange={(_e, d) => {
-                if (d) {
-                  const next = new Date(draftStart);
-                  next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                  if (next.getTime() > Date.now()) next.setTime(Date.now());
-                  setDraftStart(next);
-                }
-                if (Platform.OS !== "ios") {
-                  setShowDate(false);
-                  setTimeout(() => setDurationOpen(true), 200);
-                }
-              }}
-            />
-            {Platform.OS === "ios" && (
-              <Button
-                title="Done"
-                onPress={() => { setShowDate(false); setDurationOpen(true); }}
-                fullWidth
-                style={{ marginTop: theme.spacing.md }}
-              />
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
-      {/* Time picker - closes duration modal first, re-opens it when done */}
-      <Modal
-        visible={showTime}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}
-      >
-        <Pressable
-          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
-          onPress={() => { setShowTime(false); setDurationOpen(true); }}
-        >
-          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Select Time</Text>
-            <DateTimePicker
-              value={draftStart}
-              mode="time"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(_e, d) => {
-                if (d) {
-                  const next = new Date(draftStart);
-                  next.setHours(d.getHours(), d.getMinutes());
-                  if (next.getTime() > Date.now()) next.setTime(Date.now());
-                  setDraftStart(next);
-                }
-                if (Platform.OS !== "ios") {
-                  setShowTime(false);
-                  setTimeout(() => setDurationOpen(true), 200);
-                }
-              }}
-            />
-            {Platform.OS === "ios" && (
-              <Button
-                title="Done"
-                onPress={() => { setShowTime(false); setDurationOpen(true); }}
-                fullWidth
-                style={{ marginTop: theme.spacing.md }}
-              />
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* Date picker — rendered directly (no custom Modal) so Android shows the native dialog */}
+      {showDate && (
+        <DateTimePicker
+          value={draftStart}
+          mode="date"
+          maximumDate={new Date()}
+          display={Platform.OS === "ios" ? "inline" : "default"}
+          onChange={(_e, d) => {
+            if (d) {
+              const next = new Date(draftStart);
+              next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+              if (next.getTime() > Date.now()) next.setTime(Date.now());
+              setDraftStart(next);
+            }
+            setShowDate(false);
+            setTimeout(() => setDurationOpen(true), 200);
+          }}
+        />
+      )}
+
+      {/* Time picker — rendered directly so Android shows the native time dialog */}
+      {showTime && (
+        <DateTimePicker
+          value={draftStart}
+          mode="time"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(_e, d) => {
+            if (d) {
+              const next = new Date(draftStart);
+              next.setHours(d.getHours(), d.getMinutes());
+              if (next.getTime() > Date.now()) next.setTime(Date.now());
+              setDraftStart(next);
+            }
+            setShowTime(false);
+            setTimeout(() => setDurationOpen(true), 200);
+          }}
+        />
+      )}
 
       {/* ── Set-type picker ─────────────────────────────────────────────────── */}
       <Modal
