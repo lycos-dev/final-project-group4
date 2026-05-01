@@ -117,31 +117,66 @@ const DEFAULT_SETTINGS: WorkoutSettings = {
 
 const FAVORITES_KEY = '@nexa/favorite_exercises';
 
+const WORKOUTS_KEY = '@nexa/completed_workouts';
+const SETTINGS_KEY = '@nexa/workout_settings';
+
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [exercises, setExercisesState] = useState<LogExercise[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(new Set());
 
+  // Load persisted data on mount
   useEffect(() => {
     let mounted = true;
-    const loadFavorites = async () => {
+    const loadData = async () => {
       try {
-        const raw = await AsyncStorage.getItem(FAVORITES_KEY);
-        if (!mounted || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          setFavoriteExerciseIds(new Set(parsed.filter((id) => typeof id === 'string')));
+        // Load completed workouts
+        const workoutsRaw = await AsyncStorage.getItem(WORKOUTS_KEY);
+        if (mounted && workoutsRaw) {
+          const parsed = JSON.parse(workoutsRaw);
+          if (Array.isArray(parsed)) {
+            setCompletedWorkouts(parsed);
+          }
+        }
+        // Load settings
+        const settingsRaw = await AsyncStorage.getItem(SETTINGS_KEY);
+        if (mounted && settingsRaw) {
+          const parsed = JSON.parse(settingsRaw);
+          if (parsed && typeof parsed === 'object') {
+            setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+          }
+        }
+        // Load favorites
+        const favRaw = await AsyncStorage.getItem(FAVORITES_KEY);
+        if (mounted && favRaw) {
+          const parsed = JSON.parse(favRaw);
+          if (Array.isArray(parsed)) {
+            setFavoriteExerciseIds(new Set(parsed.filter(id => typeof id === 'string')));
+          }
         }
       } catch {
-        // Ignore restore failures; favorites remain empty.
+        // Ignore restore failures
       }
     };
-    loadFavorites();
-    return () => {
-      mounted = false;
-    };
+    loadData();
+    return () => { mounted = false; };
   }, []);
+
+  // Persist completed workouts when changed
+  useEffect(() => {
+    AsyncStorage.setItem(WORKOUTS_KEY, JSON.stringify(completedWorkouts)).catch(() => {});
+  }, [completedWorkouts]);
+
+  // Persist settings when changed
+  useEffect(() => {
+    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)).catch(() => {});
+  }, [settings]);
+
+  // Persist favorites when changed
+  useEffect(() => {
+    AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify([...favoriteExerciseIds])).catch(() => {});
+  }, [favoriteExerciseIds]);
 
   // ── timer internals ───────────────────────────────────────────────────────
   const [isActive, setIsActive] = useState(false);
