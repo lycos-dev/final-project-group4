@@ -294,7 +294,7 @@ export const ExerciseDetailScreen = () => {
               <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>SETS</Text>
             </Card>
             <Card style={styles.stat}>
-              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>{exercise.defaultReps}</Text>
+              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>—</Text>
               <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>REPS</Text>
             </Card>
           </View>
@@ -428,12 +428,6 @@ export const ExerciseDetailScreen = () => {
                               {set.weight}kg × {set.reps}
                             </Text>
                           </View>
-                          {set.restTime && (
-                            <View style={styles.setDetailItem}>
-                              <Text style={[styles.setDetailLabel, { color: appTheme.colors.muted }]}>Rest</Text>
-                              <Text style={[styles.setDetailValue, { color: appTheme.colors.text }]}>{set.restTime}s</Text>
-                            </View>
-                          )}
                         </View>
                       </View>
                     ))}

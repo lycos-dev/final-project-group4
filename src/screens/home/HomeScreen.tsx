@@ -58,7 +58,7 @@ export const HomeScreen = () => {
                   id={workout.id}
                   username={profile.name}
                   routineName={workout.routineName}
-                  timeMinutes={workout.durationMinutes}
+                  durationSeconds={workout.durationSeconds}
                   volumeKg={workout.totalVolumeKg}
                   exercises={exerciseDetails}
                   timestamp={formatTimestamp(workout.completedAt)}

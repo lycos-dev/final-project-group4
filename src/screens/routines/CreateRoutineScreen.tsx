@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   Animated,
+  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import { RootStackParamList } from '../../navigation/RootNavigator';
 import { useTheme } from '../../context/ThemeContext';
 import { Routine, RoutineExercise, RoutineFolder } from '../../types';
 import { useRoutine } from '../../context/RoutineContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -74,6 +76,10 @@ const createStyles = (theme: any) =>
       fontSize: theme.font.sizeLg,
       fontWeight: theme.font.weightBold,
       color: theme.colors.text,
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
     },
     saveButton: {
       backgroundColor: theme.colors.accent,
@@ -674,7 +680,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
             ...s.sets,
             {
               id: `${exerciseInstanceId}-set-${s.sets.length}-${Date.now()}`,
-              reps: String(ex?.defaultReps ?? 10),
+              reps: '10',
               weight: '0',
             },
           ],
@@ -700,7 +706,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} forceTopSafe>
       {/* ── Header ────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleCancelPress}>

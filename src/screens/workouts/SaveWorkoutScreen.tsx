@@ -123,7 +123,7 @@ export const SaveWorkoutScreen = ({ navigation, route }: Props) => {
   };
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} forceTopSafe>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
           <Ionicons name="chevron-back" size={26} color={appTheme.colors.text} />

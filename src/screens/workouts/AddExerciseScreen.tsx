@@ -176,7 +176,7 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
   );
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} forceTopSafe>
       <FlatList
         ListHeaderComponent={renderHeader}
         data={filtered}

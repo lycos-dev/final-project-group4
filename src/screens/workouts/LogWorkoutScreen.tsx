@@ -301,7 +301,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 ...ex,
                 sets: ex.sets.map((s, idx) =>
                   idx === ex.sets.length - 1
-                    ? { ...s, reps: prefill.reps, weight: prefill.weight }
+                    ? { ...s, reps: String(prefill.reps), weight: String(prefill.weight) }
                     : s
                 ),
               }
@@ -639,7 +639,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     discardWorkout();       // reset without saving to history
     const sourceScreen = route.params?.sourceScreen;
     if (sourceScreen === 'ExploreRoutines') {
-      navigation.navigate('Tabs', { screen: 'Library' });
+      navigation.navigate('Tabs');
     } else {
       navigation.goBack();
     }
@@ -679,7 +679,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       setMinimized(true);
       const sourceScreen = route.params?.sourceScreen;
       if (sourceScreen === 'ExploreRoutines') {
-        navigation.navigate('Tabs', { screen: 'Library' });
+        navigation.navigate('Tabs');
       } else {
         navigation.goBack();
       }
@@ -699,7 +699,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   /* ────────────────────────── RENDER ─────────────────────────────────────── */
   return (
-    <Screen padded={false}>
+    <Screen padded={false} forceTopSafe>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
@@ -841,12 +841,11 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     // Only use completed sets from previous workout
                     const prevSet = (prevExercise?.sets[index]?.completed) ? prevExercise.sets[index] : undefined;
 
-                    const handlePrefillFromPrevious = () => {
-                      if (prevSet) {
-                        updateSet(exercise.id, set.id, "weight", String(prevSet.weight));
-                        updateSet(exercise.id, set.id, "reps", String(prevSet.reps));
-                      }
-                    };
+  const handlePrefillFromPrevious = () => {
+    if (!prevSet) return;
+    updateSet(exercise.id, set.id, 'reps', String(prevSet.reps));
+    updateSet(exercise.id, set.id, 'weight', String(prevSet.weight));
+  };
 
                     return (
                       <View key={set.id} style={styles.setRow}>
@@ -1756,7 +1755,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeMd,
     textAlign: "center",
   },
-  previousValue: { color: theme.colors.muted },
+  previousValue: {
+    opacity: 0.8,
+  },
   setInput: {
     backgroundColor: theme.colors.bg,
     borderRadius: theme.radius.sm,

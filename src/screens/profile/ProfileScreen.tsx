@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import {
   Text,
   View,
@@ -15,13 +15,10 @@ import { Button } from '../../components/ui/Button';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { StatCard } from '../../components/profile/StatCard';
 import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
-import { AchievementCard } from '../../components/profile/AchievementCard';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
-import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { buildExerciseAchievements } from '../../utils/achievements';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -30,7 +27,6 @@ export const ProfileScreen = () => {
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const { profile, settings } = useProfile();
-  const { completedWorkouts, settings: workoutSettings } = useWorkout();
   const nav = useNavigation<Nav>();
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -57,10 +53,6 @@ export const ProfileScreen = () => {
   const subtitle = `${profile.age} yrs · ${weightLabel} ${weightUnit} · ${heightLabel} ${heightUnit}`;
 
   const bottomPadding = insets.bottom + theme.spacing.xl + 72;
-  const achievements = useMemo(
-    () => buildExerciseAchievements(completedWorkouts, workoutSettings.weightUnit).slice(0, 3),
-    [completedWorkouts, workoutSettings.weightUnit],
-  );
 
   return (
     <ScrollView
@@ -84,7 +76,7 @@ export const ProfileScreen = () => {
       {/* ── Stats Row ───────────────────────────────────────────────── */}
       <View style={styles.statsRow}>
         <StatCard icon="resize-outline"   value={heightLabel}       label={heightUnit} accent />
-        <StatCard icon="barbell-outline"  value={weightLabel}       label={weightUnit} />
+        <StatCard icon="person-outline"  value={weightLabel}       label={`Body Weight (${weightUnit})`} />
         <StatCard icon="calendar-outline" value={`${profile.age}`} label="Age" />
       </View>
 
@@ -109,35 +101,25 @@ export const ProfileScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Achievements ─────────────────────────────────────────────── */}
+      {/* ── Achievements Navigation ──────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>ACHIEVEMENTS</Text>
-        {achievements.length === 0 ? (
-          <EmptyPlaceholder
-            icon="trophy-outline"
-            title="No achievements yet"
-            message={'Complete your first workout to start\nearning badges and milestones.'}
-          />
-        ) : (
-          <View style={styles.achievementsList}>
-            {achievements.map((achievement) => (
-              <AchievementCard
-                key={achievement.id}
-                title={achievement.title}
-                detail={achievement.detail}
-              />
-            ))}
+        <TouchableOpacity
+          style={styles.goalsCard}
+          onPress={() => nav.navigate('Achievements')}
+          activeOpacity={0.75}
+        >
+          <View style={styles.goalsIconWrap}>
+            <Ionicons name="trophy-outline" size={22} color={theme.colors.accent} />
           </View>
-        )}
-        {achievements.length >= 3 ? (
-          <Button
-            title="See More Achievements"
-            variant="secondary"
-            onPress={() => nav.navigate('Achievements')}
-            fullWidth
-            style={{ marginTop: theme.spacing.md }}
-          />
-        ) : null}
+          <View style={styles.goalsText}>
+            <Text style={styles.goalsTitle}>View All Achievements</Text>
+            <Text style={styles.goalsSub}>
+              Check your PRs and milestones
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+        </TouchableOpacity>
       </View>
 
       {/* ── Actions ──────────────────────────────────────────────────── */}

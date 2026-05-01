@@ -41,7 +41,8 @@ type ActiveModal =
   | { type: 'createFolder' }
   | { type: 'routineMenu'; routine: Routine }
   | { type: 'noRoutineInFolder'; folderName: string; folderId: string }
-  | { type: 'moveRoutine'; routine: Routine };
+  | { type: 'moveRoutine'; routine: Routine }
+  | { type: 'startRoutine'; routine: Routine };
 
 const TIPS = [
   {
@@ -107,16 +108,18 @@ const BottomSheetModal = ({
 const RoutineCard = ({
   routine,
   onMenuPress,
+  onPress,
 }: {
   routine: Routine;
   onMenuPress: (routine: Routine) => void;
+  onPress: (routine: Routine) => void;
 }) => {
   const { theme: appTheme } = useTheme();
   const theme = appTheme;
   const styles = createStyles(appTheme);
 
   return (
-    <View style={styles.routineCard}>
+    <TouchableOpacity style={styles.routineCard} onPress={() => onPress(routine)}>
       <View style={styles.routineCardLeft}>
         <View style={styles.routineCardIcon}>
           <MaterialCommunityIcons name="dumbbell" size={18} color={theme.colors.accent} />
@@ -137,7 +140,7 @@ const RoutineCard = ({
       >
         <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.muted} />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -150,7 +153,7 @@ export const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
-  const { isActive, exercises, setMinimized, discardWorkout } = useWorkout();
+  const { isActive, exercises, setMinimized, discardWorkout, clearWorkout, addExercises } = useWorkout();
   const handleStartNewWorkout = () => {
     if (!isActive) {
       nav.navigate('LogWorkout', { exercisesToAdd: [] });
@@ -227,6 +230,10 @@ export const ExerciseListScreen = () => {
     closeModal();
   };
 
+  const handleRoutinePress = (routine: Routine) => {
+    setActiveModal({ type: 'startRoutine', routine });
+  };
+
   // ── FolderSection sub-component ──────────────────────────────────────────────
   const FolderSection = ({ folder }: { folder: RoutineFolder }) => {
     const items = routinesInFolder(folder.id);
@@ -289,6 +296,7 @@ export const ExerciseListScreen = () => {
                     key={r.id}
                     routine={r}
                     onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
+                    onPress={(rt) => handleRoutinePress(rt)}
                   />
                 ))}
                 {/* ── Feature #1: shortcut to add another routine to this folder ── */}
@@ -416,6 +424,7 @@ export const ExerciseListScreen = () => {
                       key={r.id}
                       routine={r}
                       onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
+                      onPress={(rt) => handleRoutinePress(rt)}
                     />
                   ))}
                 </View>
@@ -783,10 +792,56 @@ export const ExerciseListScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* ── Start Routine Confirmation ───────────────────── */}
+      <Modal
+        visible={activeModal?.type === 'startRoutine'}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons name="play-circle" size={40} color={theme.colors.accent} />
+            <Text style={styles.modalTitle}>Start Routine?</Text>
+            <Text style={styles.modalSubtitle}>
+              {activeModal?.type === 'startRoutine'
+                ? `Start "${activeModal.routine.name}" with ${activeModal.routine.exercises.length} exercise${activeModal.routine.exercises.length !== 1 ? 's' : ''}?`
+                : ''}
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
+                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: theme.colors.success }]}
+                onPress={() => {
+                  if (activeModal?.type === 'startRoutine') {
+                    closeModal();
+                    clearWorkout();
+                    const exercisesToAdd = activeModal.routine.exercises.map((ex) => ({
+                      ...ex,
+                      routineSets: ex.routineSets || [],
+                    }));
+                    addExercises(exercisesToAdd);
+                    nav.navigate('LogWorkout', {
+                      exercisesToAdd: [],
+                      routineName: activeModal.routine.name,
+                      sourceScreen: 'ExploreRoutines',
+                    });
+                  }
+                }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Start</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
-
 // ── Styles ────────────────────────────────────────────────────────────────────
 const createStyles = (appTheme: typeof theme) => {
   const theme = appTheme;

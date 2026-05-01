@@ -21,7 +21,7 @@ interface Props {
   id?: string;
   username: string;
   routineName: string;
-  timeMinutes: number;
+  durationSeconds: number;
   volumeKg: number;
   exercises: ExerciseDetail[];
   timestamp?: string;
@@ -31,7 +31,7 @@ export const WorkoutCompletionCard = ({
   id,
   username,
   routineName,
-  timeMinutes,
+  durationSeconds,
   volumeKg,
   exercises,
   timestamp,
@@ -42,6 +42,13 @@ export const WorkoutCompletionCard = ({
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { setCurrentRoutine, addRoutine } = useRoutine();
   const { deleteCompletedWorkout } = useWorkout();
+
+  const formatDuration = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  };
 
   return (
     <Card>
@@ -78,7 +85,7 @@ export const WorkoutCompletionCard = ({
       <View style={styles.statsContainer}>
         <View style={styles.statColumn}>
           <Text style={styles.statLabel}>Time</Text>
-          <Text style={styles.statValue}>{timeMinutes}min</Text>
+          <Text style={styles.statValue}>{formatDuration(durationSeconds)}</Text>
         </View>
         <View style={styles.statColumn}>
           <Text style={styles.statLabel}>Volume</Text>

@@ -98,7 +98,7 @@ export const LoginScreen = ({ navigation }: Props) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
     >
-      <Screen scroll>
+      <Screen scroll forceTopSafe>
         <Animated.View
           style={[
             styles.inner,

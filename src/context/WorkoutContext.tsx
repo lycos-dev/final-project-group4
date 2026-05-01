@@ -116,7 +116,7 @@ const DEFAULT_SETTINGS: WorkoutSettings = {
 };
 
 const FAVORITES_KEY = '@nexa/favorite_exercises';
-
+const EXERCISE_HISTORY_KEY = '@nexa/exercise_set_history';
 const WORKOUTS_KEY = '@nexa/completed_workouts';
 const SETTINGS_KEY = '@nexa/workout_settings';
 
@@ -125,6 +125,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(new Set());
+  const [exerciseHistory, setExerciseHistory] = useState<Record<string, { reps: string; weight: string }>>({});
 
   // Load persisted data on mount
   useEffect(() => {
@@ -155,6 +156,14 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
             setFavoriteExerciseIds(new Set(parsed.filter(id => typeof id === 'string')));
           }
         }
+        // Load exercise set history
+        const historyRaw = await AsyncStorage.getItem(EXERCISE_HISTORY_KEY);
+        if (mounted && historyRaw) {
+          const parsed = JSON.parse(historyRaw);
+          if (parsed && typeof parsed === 'object') {
+            setExerciseHistory(parsed);
+          }
+        }
       } catch {
         // Ignore restore failures
       }
@@ -177,6 +186,11 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify([...favoriteExerciseIds])).catch(() => {});
   }, [favoriteExerciseIds]);
+
+  // Persist exercise set history when changed
+  useEffect(() => {
+    AsyncStorage.setItem(EXERCISE_HISTORY_KEY, JSON.stringify(exerciseHistory)).catch(() => {});
+  }, [exerciseHistory]);
 
   // ── timer internals ───────────────────────────────────────────────────────
   const [isActive, setIsActive] = useState(false);
@@ -272,6 +286,9 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const hasSavedRoutineData = ex.routineSets && ex.routineSets.length > 0;
       const routineRestTimer = ex.restTimerDuration ?? settings.defaultRestSeconds;
 
+      // Check if there's history for this exercise
+      const history = exerciseHistory[ex.id];
+
       return {
         ...ex,
         id: uniqueInstanceId,
@@ -280,13 +297,13 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         restTimerDuration: routineRestTimer,
         sets: hasSavedRoutineData
           ? ex.routineSets.map((s: any) => ({ ...s, completed: false }))
-          : Array.from({ length: ex.defaultSets }, (_, i) => ({
-              id: `${uniqueInstanceId}-set-${i}`,
-              reps: '',
-              weight: '',
+          : [{
+              id: `${uniqueInstanceId}-set-0`,
+              reps: history ? history.reps : '',
+              weight: history ? history.weight : '',
               completed: false,
               type: 'normal' as SetType,
-            })),
+            }], // Always provide at least one set, pre-filled with history if available
       };
     });
     setExercisesState((prev) => [...prev, ...newExercises]);
@@ -376,6 +393,21 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       description: payload.description?.trim() || undefined,
       photoUri: payload.photoUri,
     };
+
+    // Save exercise set history for future pre-fill
+    const newHistory = { ...exerciseHistory };
+    exercises.forEach((ex) => {
+      const completedSets = ex.sets.filter((s) => s.completed);
+      if (completedSets.length > 0) {
+        // Save the last completed set as reference
+        const lastSet = completedSets[completedSets.length - 1];
+        newHistory[ex.originalExerciseId] = {
+          reps: lastSet.reps,
+          weight: lastSet.weight,
+        };
+      }
+    });
+    setExerciseHistory(newHistory);
 
     setCompletedWorkouts((prev) => [...prev, record]);
     _resetState();

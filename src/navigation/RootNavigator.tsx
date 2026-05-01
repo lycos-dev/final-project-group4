@@ -41,7 +41,7 @@ export type RootStackParamList = {
   Goals: undefined;
   Achievements: undefined;
   WorkoutHistory: { dateMs: number };
-  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string; sourceScreen?: 'ExploreRoutines' };
+  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string; sourceScreen?: 'ExploreRoutines'; prefillSet?: { reps: number; weight: number }; exerciseId?: string };
   SaveWorkout: {
     routineName?: string;
     durationSeconds: number;
@@ -64,7 +64,6 @@ export default function RootNavigator() {
     headerStyle: { backgroundColor: appTheme.colors.bg },
     headerTintColor: appTheme.colors.text,
     headerTitleStyle: { fontWeight: appTheme.font.weightBold as 'bold' },
-    contentStyle: { backgroundColor: appTheme.colors.bg },
   } as const;
 
   if (isLoggedIn === null) {

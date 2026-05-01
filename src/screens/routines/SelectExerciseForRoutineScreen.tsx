@@ -327,7 +327,7 @@ export const SelectExerciseForRoutineScreen = ({ navigation }: Props) => {
   );
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} forceTopSafe>
       <FlatList
         ListHeaderComponent={renderHeader}
         data={filtered}

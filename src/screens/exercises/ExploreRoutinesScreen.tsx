@@ -169,7 +169,7 @@ export const ExploreRoutinesScreen = () => {
                       <View style={styles.exerciseInfo}>
                         <Text style={styles.exerciseName}>{ex.name}</Text>
                         <Text style={styles.exerciseDetail}>
-                          {ex.defaultSets} sets · {ex.defaultReps} reps · {ex.muscleGroup}
+                          {ex.defaultSets} sets · {ex.muscleGroup}
                         </Text>
                       </View>
                       <View style={styles.equipmentTag}>

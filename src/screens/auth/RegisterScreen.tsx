@@ -173,7 +173,7 @@ export const RegisterScreen = ({ navigation }: Props) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
     >
-      <Screen scroll>
+      <Screen scroll forceTopSafe>
         <Animated.View style={{ opacity: fadeAnim }}>
           {/* ── Back ──────────────────────────────────────────────────── */}
           <View style={styles.topBar}>

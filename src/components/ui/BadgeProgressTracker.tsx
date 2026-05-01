@@ -4,11 +4,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
 
+type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
+
 interface Props {
   name: string;
   currentValue: number;
   goalValue: number;
-  icon?: string;
+  icon?: IconName;
   description?: string;
 }
 

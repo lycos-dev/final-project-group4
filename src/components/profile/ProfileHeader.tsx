@@ -66,18 +66,6 @@ export const ProfileHeader = ({ profile, subtitle }: Props) => {
         </LinearGradient>
       </View>
 
-      {/* NEXA badge */}
-      <View style={styles.badge}>
-        <LinearGradient
-          colors={isDark ? [appTheme.colors.accent, '#7EE800'] : [appTheme.colors.accent, '#4FB86A']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.badgeGradient}
-        >
-          <Text style={styles.badgeText}>NEXA PRO</Text>
-        </LinearGradient>
-      </View>
-
       <Text style={styles.name}>{profile.name}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </Animated.View>

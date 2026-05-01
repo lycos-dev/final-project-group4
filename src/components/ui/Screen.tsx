@@ -9,13 +9,17 @@ interface Props {
   scroll?: boolean;
   padded?: boolean;
   style?: ViewStyle;
+  forceTopSafe?: boolean;
 }
 
-export const Screen = ({ children, scroll = false, padded = true, style }: Props) => {
+export const Screen = ({ children, scroll = false, padded = true, style, forceTopSafe = false }: Props) => {
   const { theme: appTheme } = useTheme();
   const inner = padded ? styles.padded : undefined;
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: appTheme.colors.bg }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView 
+      style={[styles.safe, { backgroundColor: appTheme.colors.bg }]} 
+      edges={forceTopSafe ? ['top', 'left', 'right'] : ['left', 'right']}
+    >
       {scroll ? (
         <ScrollView contentContainerStyle={[styles.scroll, inner, style]} keyboardShouldPersistTaps="handled">
           {children}

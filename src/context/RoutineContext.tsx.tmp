@@ -158,3 +158,81 @@ export const useRoutine = () => {
   }
   return context;
 };
+
+  const updateRoutine = (routine: Routine) => {
+    setRoutines((prev) => prev.map((r) => (r.id === routine.id ? routine : r)));
+  };
+
+  const deleteRoutine = (routineId: string) => {
+    setRoutines((prev) => prev.filter((r) => r.id !== routineId));
+    if (currentRoutine?.id === routineId) {
+      setCurrentRoutine(null);
+    }
+  };
+
+  const addExerciseToRoutine = (exercise: RoutineExercise) => {
+    if (!currentRoutine) return;
+    const updated = {
+      ...currentRoutine,
+      exercises: [...currentRoutine.exercises, exercise],
+    };
+    setCurrentRoutine(updated);
+    updateRoutine(updated);
+  };
+
+  const removeExerciseFromRoutine = (exerciseId: string) => {
+    if (!currentRoutine) return;
+    const updated = {
+      ...currentRoutine,
+      exercises: currentRoutine.exercises.filter((e) => e.id !== exerciseId),
+    };
+    setCurrentRoutine(updated);
+    updateRoutine(updated);
+  };
+
+  // ── Folder methods ──────────────────────────────────────────────────────────
+
+  const addFolder = (name: string): RoutineFolder => {
+    const folder: RoutineFolder = {
+      id: `folder-${Date.now()}`,
+      name: name.trim(),
+      createdAt: Date.now(),
+    };
+    setFolders((prev) => [...prev, folder]);
+    return folder;
+  };
+
+  const deleteFolder = (folderId: string) => {
+    setFolders((prev) => prev.filter((f) => f.id !== folderId));
+    // Un-assign routines that were in the deleted folder
+    setRoutines((prev) =>
+      prev.map((r) => (r.folderId === folderId ? { ...r, folderId: undefined } : r))
+    );
+  };
+
+  const assignRoutineToFolder = (routineId: string, folderId: string | undefined) => {
+    setRoutines((prev) =>
+      prev.map((r) => (r.id === routineId ? { ...r, folderId } : r))
+    );
+  };
+
+  return (
+    <RoutineContext.Provider
+      value={{
+        routines,
+        currentRoutine,
+        folders,
+        addRoutine,
+        updateRoutine,
+        deleteRoutine,
+        setCurrentRoutine,
+        addExerciseToRoutine,
+        removeExerciseFromRoutine,
+        addFolder,
+        deleteFolder,
+        assignRoutineToFolder,
+      }}
+    >
+      {children}
+    </RoutineContext.Provider>
+  );
