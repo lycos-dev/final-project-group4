@@ -121,7 +121,9 @@ export const CustomLibraryScreen = () => {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.listContent}
+        scrollIndicatorInsets={{ right: 1 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <View style={styles.empty}>
             <MaterialCommunityIcons
@@ -303,7 +305,7 @@ const createStyles = (appTheme: typeof theme) => {
   },
 
   /* ── List rows ─────────────────────────────────────────────────────── */
-  listContent: { paddingBottom: theme.spacing.xxl },
+  listContent: { paddingBottom: theme.spacing.xxl, backgroundColor: theme.colors.bg },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',

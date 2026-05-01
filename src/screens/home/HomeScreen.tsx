@@ -55,6 +55,7 @@ export const HomeScreen = () => {
             return (
               <View key={workout.id} style={styles.workoutCardSpacing}>
                 <WorkoutCompletionCard
+                  id={workout.id}
                   username={profile.name}
                   routineName={workout.routineName}
                   timeMinutes={workout.durationMinutes}

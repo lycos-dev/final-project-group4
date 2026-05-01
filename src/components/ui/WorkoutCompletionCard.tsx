@@ -1,9 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, Modal, TouchableOpacity, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from './Card';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useRoutine } from '../../context/RoutineContext';
+import { useWorkout } from '../../context/WorkoutContext';
+import { RootStackParamList } from '../../navigation/RootNavigator';
 
 interface ExerciseDetail {
   name: string;
@@ -13,6 +18,7 @@ interface ExerciseDetail {
 }
 
 interface Props {
+  id?: string;
   username: string;
   routineName: string;
   timeMinutes: number;
@@ -22,6 +28,7 @@ interface Props {
 }
 
 export const WorkoutCompletionCard = ({
+  id,
   username,
   routineName,
   timeMinutes,
@@ -31,6 +38,10 @@ export const WorkoutCompletionCard = ({
 }: Props) => {
   const { theme: appTheme } = useTheme();
   const styles = createStyles(appTheme);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { setCurrentRoutine, addRoutine } = useRoutine();
+  const { deleteCompletedWorkout } = useWorkout();
 
   return (
     <Card>
@@ -51,11 +62,13 @@ export const WorkoutCompletionCard = ({
             ) : null}
           </View>
         </View>
-        <MaterialCommunityIcons
-          name="dots-vertical"
-          size={20}
-          color={appTheme.colors.muted}
-        />
+        <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialCommunityIcons
+            name="dots-vertical"
+            size={20}
+            color={appTheme.colors.muted}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Routine title */}
@@ -107,6 +120,60 @@ export const WorkoutCompletionCard = ({
           </View>
         ))}
       </View>
+      {/* Menu modal for Save as Routine */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuSheet}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                // Build a temporary routine from this workout and navigate to CreateRoutine
+                const tempRoutine = {
+                  id: `temp-routine-${Date.now()}`,
+                  name: routineName || 'New Routine',
+                  createdAt: Date.now(),
+                  exercises: exercises.map((ex, i) => ({
+                    id: `temp-ex-${i}-${Date.now()}`,
+                    name: ex.name,
+                    muscleGroup: 'Full Body',
+                    equipment: 'Bodyweight',
+                    steps: [],
+                    imageUrl: ex.image,
+                    defaultSets: ex.sets || 3,
+                    defaultReps: 10,
+                  })),
+                } as any;
+
+                setCurrentRoutine(tempRoutine);
+                setMenuOpen(false);
+                nav.navigate('CreateRoutine' as any);
+              }}
+            >
+              <Text style={styles.menuItemText}>Save as Routine</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (!id) return;
+                Alert.alert(
+                  'Delete workout?','This will remove the workout from your history. This cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => { deleteCompletedWorkout(id); setMenuOpen(false); } },
+                  ]
+                );
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: '#E02424' }]}>Delete</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.menuItem, styles.menuCancel]} onPress={() => setMenuOpen(false)}>
+              <Text style={[styles.menuItemText, styles.menuCancelText]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </Card>
   );
 };
@@ -219,5 +286,36 @@ const createStyles = (appTheme: typeof theme) =>
     exerciseReps: {
       color: appTheme.colors.muted,
       fontSize: appTheme.font.sizeSm,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: appTheme.spacing.lg,
+    },
+    menuSheet: {
+      width: '100%',
+      backgroundColor: appTheme.colors.surface,
+      borderRadius: appTheme.radius.lg,
+      paddingVertical: appTheme.spacing.md,
+      borderWidth: 1,
+      borderColor: appTheme.colors.border,
+    },
+    menuItem: {
+      paddingVertical: appTheme.spacing.md,
+      paddingHorizontal: appTheme.spacing.lg,
+    },
+    menuItemText: {
+      color: appTheme.colors.text,
+      fontSize: appTheme.font.sizeMd,
+      fontWeight: appTheme.font.weightMedium,
+    },
+    menuCancel: {
+      borderTopWidth: 1,
+      borderTopColor: appTheme.colors.border,
+    },
+    menuCancelText: {
+      color: appTheme.colors.muted,
     },
   });

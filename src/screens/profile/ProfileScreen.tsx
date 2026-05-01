@@ -88,16 +88,6 @@ export const ProfileScreen = () => {
         <StatCard icon="calendar-outline" value={`${profile.age}`} label="Age" />
       </View>
 
-      {/* ── Fitness Goal ─────────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>FITNESS GOAL</Text>
-        <Card>
-          <Text style={styles.goalText}>
-            {profile.goal || 'No goal set yet. Tap Edit Profile to add one.'}
-          </Text>
-        </Card>
-      </View>
-
       {/* ── Goals Navigation ─────────────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>MY GOALS</Text>
@@ -199,11 +189,6 @@ const createStyles = (appTheme: typeof theme) => {
       fontSize: 11,
       fontWeight: theme.font.weightBold,
       letterSpacing: 1.2,
-    },
-    goalText: {
-      color: theme.colors.muted,
-      fontSize: theme.font.sizeMd,
-      lineHeight: 22,
     },
 
     /* ── Goals Card ────────────────────────────────────────────────────── */
