@@ -36,7 +36,7 @@ export const WorkoutHistoryScreen = () => {
     id: workout.id,
     username: profile.name,
     routineName: workout.routineName,
-    timeMinutes: workout.durationMinutes,
+    timeMinutes: workout.durationSeconds,
     volumeKg: workout.totalVolumeKg,
     timestamp: new Date(workout.completedAt).toLocaleTimeString([], {
       hour: '2-digit',

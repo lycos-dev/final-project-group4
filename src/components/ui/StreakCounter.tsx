@@ -22,13 +22,15 @@ export const StreakCounter = ({
   const { completedWorkouts } = useWorkout();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState(currentYear);
   const workoutsByDay = useMemo(() => {
     const byDay: Record<number, string[]> = {};
     completedWorkouts.forEach((workout) => {
       const completedDate = new Date(workout.completedAt);
       if (
-        completedDate.getMonth() === currentMonth &&
-        completedDate.getFullYear() === currentYear
+        completedDate.getMonth() === month &&
+        completedDate.getFullYear() === year
       ) {
         const day = completedDate.getDate();
         if (!byDay[day]) byDay[day] = [];
@@ -36,23 +38,25 @@ export const StreakCounter = ({
       }
     });
     return byDay;
-  }, [completedWorkouts, currentMonth, currentYear]);
+  }, [completedWorkouts, month, year]);
   const workoutDays = useMemo(
     () => Object.keys(workoutsByDay).map((d) => Number(d)),
     [workoutsByDay],
   );
-  const currentDay = new Date().getDate();
+  const today = new Date();
+  const isCurrentMonth = month === today.getMonth() && year === today.getFullYear();
+  const currentDay = isCurrentMonth ? today.getDate() : -1;
 
   const monthData = useMemo(() => {
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-    const monthName = new Date(currentYear, currentMonth).toLocaleDateString('en-US', {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const monthName = new Date(year, month).toLocaleDateString('en-US', {
       month: 'long',
       year: 'numeric',
     });
 
     return { daysInMonth, firstDay, monthName };
-  }, [currentMonth, currentYear]);
+  }, [month, year]);
 
   const weeks = useMemo(() => {
     const { daysInMonth, firstDay } = monthData;
@@ -79,7 +83,40 @@ export const StreakCounter = ({
 
   const calendarContent = (
     <View style={styles.calendarContainer}>
-      <Text style={styles.monthTitle}>{monthData.monthName}</Text>
+      {/* Month navigation */}
+      <View style={styles.monthNavRow}>
+        <TouchableOpacity 
+          style={styles.monthNavBtn} 
+          onPress={() => {
+            if (month === 0) {
+              setMonth(11);
+              setYear(year - 1);
+            } else {
+              setMonth(month - 1);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={20} color={appTheme.colors.accent} />
+        </TouchableOpacity>
+        
+        <Text style={styles.monthTitle}>{monthData.monthName}</Text>
+        
+        <TouchableOpacity 
+          style={styles.monthNavBtn} 
+          onPress={() => {
+            if (month === 11) {
+              setMonth(0);
+              setYear(year + 1);
+            } else {
+              setMonth(month + 1);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="chevron-right" size={20} color={appTheme.colors.accent} />
+        </TouchableOpacity>
+      </View>
       
       {/* Day headers */}
       <View style={styles.daysHeaderRow}>
@@ -106,7 +143,7 @@ export const StreakCounter = ({
               if (!day) return;
               setSelectedDay(day);
               navigation.navigate('WorkoutHistory', {
-                dateMs: new Date(currentYear, currentMonth, day).getTime(),
+                dateMs: new Date(year, month, day).getTime(),
               });
               // Clear transient selection so highlight doesn't persist after navigation
               setTimeout(() => setSelectedDay(null), 120);
@@ -185,8 +222,19 @@ const createStyles = (appTheme: typeof theme) =>
       color: appTheme.colors.text,
       fontSize: appTheme.font.sizeMd,
       fontWeight: appTheme.font.weightBold,
-      marginBottom: appTheme.spacing.md,
+      flex: 1,
       textAlign: 'center',
+    },
+    monthNavRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: appTheme.spacing.md,
+    },
+    monthNavBtn: {
+      padding: appTheme.spacing.sm,
+      borderRadius: appTheme.radius.sm,
+      backgroundColor: appTheme.colors.surfaceAlt,
     },
     daysHeaderRow: {
       flexDirection: 'row',

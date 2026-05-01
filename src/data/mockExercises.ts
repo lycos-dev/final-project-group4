@@ -15,7 +15,6 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Re-rack under control. Breathe out on the push.',
     ],
     defaultSets: 3,
-    defaultReps: 8,
   },
   {
     id: '2',
@@ -31,7 +30,6 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Lower slowly back to a dead hang.',
     ],
     defaultSets: 3,
-    defaultReps: 10,
   },
   {
     id: '3',
@@ -47,7 +45,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Drive through your heels to stand. Keep chest tall.',
     ],
     defaultSets: 4,
-    defaultReps: 5,
+
   },
   {
     id: '4',
@@ -63,7 +61,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Lower the bar back to collarbone in a controlled arc.',
     ],
     defaultSets: 3,
-    defaultReps: 6,
+
   },
   {
     id: '5',
@@ -79,7 +77,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Lock out at the top. Hinge back down to reset.',
     ],
     defaultSets: 3,
-    defaultReps: 5,
+
   },
   {
     id: '6',
@@ -95,7 +93,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Lower slowly over 2–3 seconds. Repeat.',
     ],
     defaultSets: 3,
-    defaultReps: 12,
+
   },
   {
     id: '7',
@@ -111,7 +109,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Breathe steadily. Hold for target duration.',
     ],
     defaultSets: 3,
-    defaultReps: 60,
+
   },
   {
     id: '8',
@@ -127,7 +125,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Cool down at a slow walk for the final 2 minutes.',
     ],
     defaultSets: 1,
-    defaultReps: 20,
+
   },
   {
     id: '9',
@@ -143,7 +141,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Push through front heel to return to start. Alternate legs.',
     ],
     defaultSets: 3,
-    defaultReps: 10,
+
   },
   {
     id: '10',
@@ -159,6 +157,6 @@ export const MOCK_EXERCISES: Exercise[] = [
       'Land softly and immediately go into the next rep.',
     ],
     defaultSets: 3,
-    defaultReps: 15,
+
   },
 ];

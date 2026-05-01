@@ -8,14 +8,14 @@ import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useWorkout } from '../../context/WorkoutContext';
 
-const formatTimestamp = (completedAt: number): string => {
+  const formatTimestamp = (completedAt: number): string => {
   const now = Date.now();
-  const diffMs = now - completedAt;
-  const diffMins = Math.floor(diffMs / 60000);
+  const diffSec = Math.floor((now - completedAt) / 1000);
+  const diffMins = Math.floor(diffSec / 60);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return '';
+  if (diffSec < 60) return `${diffSec} second${diffSec !== 1 ? 's' : ''} ago`;
   if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
   if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
   return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;

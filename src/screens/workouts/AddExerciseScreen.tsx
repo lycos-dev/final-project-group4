@@ -82,8 +82,8 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
         restTimerDuration: ((selected as any).restTimerDuration ?? settings.defaultRestSeconds),
         sets: Array.from({ length: selected.defaultSets }, (_, i) => ({
           id: `${uniqueInstanceId}-set-${i}`,
-          reps: String(selected.defaultReps ?? ''),
-          weight: '0',
+          reps: '',
+          weight: '',
           completed: false,
           type: 'normal' as SetType,
         })),

@@ -15,7 +15,6 @@ export interface Exercise {
   /** URL to a demonstration photo or GIF. */
   imageUrl?: string;
   defaultSets: number;
-  defaultReps: number;
 }
 
 export type Units = 'metric' | 'imperial';

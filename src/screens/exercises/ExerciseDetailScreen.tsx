@@ -363,9 +363,9 @@ export const ExerciseDetailScreen = () => {
 
       {/* ── History tab ──────────────────────────────────────────────── */}
       {activeTab === 'History' && (
-        <View style={styles.emptyTab}>
+        <View>
           {exerciseHistory.length === 0 ? (
-            <>
+            <View style={styles.emptyTab}>
               <MaterialCommunityIcons
                 name="chart-timeline-variant"
                 size={44}
@@ -375,48 +375,68 @@ export const ExerciseDetailScreen = () => {
               <Text style={[styles.emptyTabSub, { color: appTheme.colors.muted }]}>
                 Completed workouts that include this exercise will appear here.
               </Text>
-            </>
+            </View>
           ) : (
-            <View style={{ width: '100%', alignItems: 'flex-start', paddingVertical: 0 }}>
+            <View style={{ width: '100%' }}>
               <View style={styles.stepsHeader}>
-                <Text style={[styles.sectionTitle, { color: appTheme.colors.text }]}>Completed Workouts</Text>
-                <Text style={[styles.stepCount, { color: appTheme.colors.muted }]}>{exerciseHistory.length}</Text>
+                <Text style={[styles.sectionTitle, { color: appTheme.colors.text }]}>Exercise History</Text>
+                <Text style={[styles.stepCount, { color: appTheme.colors.muted }]}>{exerciseHistory.length} sessions</Text>
               </View>
               {exerciseHistory.map((workout, idx) => {
                 const workoutExercise = workout.exercises.find(ex => ex.originalExerciseId === exercise.id);
+                if (!workoutExercise) return null;
+                
                 const date = new Date(workout.completedAt).toLocaleDateString('en-US', { 
                   month: 'short', 
                   day: 'numeric', 
                   year: 'numeric' 
                 });
-                const totalSetsInThisExercise = workoutExercise?.sets.length || 0;
-                const totalReps = workoutExercise?.sets.reduce((sum, set) => sum + parseInt(set.reps || '0'), 0) || 0;
+                
+                const duration = workout.durationSeconds >= 60 
+                  ? `${Math.floor(workout.durationSeconds / 60)}m ${workout.durationSeconds % 60}s`
+                  : `${workout.durationSeconds}s`;
                 
                 return (
                   <Card key={idx} style={styles.historyCard}>
                     <View style={styles.historyHeader}>
-                      <View>
+                      <View style={{ flex: 1 }}>
                         <Text style={[styles.historyWorkoutName, { color: appTheme.colors.text }]}>{workout.routineName}</Text>
                         <Text style={[styles.historyDate, { color: appTheme.colors.muted }]}>{date}</Text>
                       </View>
                       <View style={styles.historyDuration}>
                         <Ionicons name="time-outline" size={14} color={appTheme.colors.accent} />
                         <Text style={[styles.historyDurationText, { color: appTheme.colors.accent }]}>
-                          {workout.durationMinutes}m
+                          {duration}
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.historyStats, { borderTopColor: appTheme.colors.border }]}>
-                      <View style={styles.historyStat}>
-                        <Text style={[styles.historyStatValue, { color: appTheme.colors.accent }]}>{totalSetsInThisExercise}</Text>
-                        <Text style={[styles.historyStatLabel, { color: appTheme.colors.muted }]}>Sets</Text>
+                   
+                    {/* Only show completed sets for this exercise */}
+                    {workoutExercise.sets
+                      .filter(set => set.completed)
+                      .map((set, setIdx) => (
+                      <View 
+                        key={setIdx} 
+                        style={[styles.setRow, { borderBottomColor: appTheme.colors.border }]}
+                      >
+                        <View style={styles.setNumberBadge}>
+                          <Text style={[styles.setNumberText, { color: appTheme.colors.accent }]}>{setIdx + 1}</Text>
+                        </View>
+                        <View style={styles.setDetails}>
+                          <View style={styles.setDetailMain}>
+                            <Text style={[styles.setDetailValue, { color: appTheme.colors.text }]}>
+                              {set.weight}kg × {set.reps}
+                            </Text>
+                          </View>
+                          {set.restTime && (
+                            <View style={styles.setDetailItem}>
+                              <Text style={[styles.setDetailLabel, { color: appTheme.colors.muted }]}>Rest</Text>
+                              <Text style={[styles.setDetailValue, { color: appTheme.colors.text }]}>{set.restTime}s</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
-                      <View style={[styles.historyStatDivider, { backgroundColor: appTheme.colors.border }]} />
-                      <View style={styles.historyStat}>
-                        <Text style={[styles.historyStatValue, { color: appTheme.colors.accent }]}>{totalReps}</Text>
-                        <Text style={[styles.historyStatLabel, { color: appTheme.colors.muted }]}>Total Reps</Text>
-                      </View>
-                    </View>
+                    ))}
                   </Card>
                 );
               })}
@@ -611,5 +631,49 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   historyStatDivider: {
     width: 1,
     height: 24,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    borderBottomWidth: 1,
+    gap: theme.spacing.md,
+  },
+  setNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: `${theme.colors.accent}20`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setNumberText: {
+    fontSize: theme.font.sizeXs,
+    fontWeight: theme.font.weightBold,
+  },
+  setDetails: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  setDetailMain: {
+    flex: 1,
+  },
+  setDetailItem: {
+    alignItems: 'center',
+  },
+  setDetailLabel: {
+    fontSize: 10,
+    fontWeight: theme.font.weightMedium,
+    marginBottom: 2,
+  },
+  setDetailValue: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
+  setArrow: {
+    marginLeft: 'auto',
   },
 });

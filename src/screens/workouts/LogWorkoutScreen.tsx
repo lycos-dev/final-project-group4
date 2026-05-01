@@ -273,6 +273,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     setMinimized,
     settings,
     updateSettings,
+    completedWorkouts,
   } = useWorkout();
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -287,6 +288,29 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     if (toAdd && toAdd.length > 0) addExercises(toAdd);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle prefill from ExerciseDetailScreen history tap
+  useEffect(() => {
+    const prefill = route.params?.prefillSet;
+    const exerciseId = route.params?.exerciseId;
+    if (prefill && exerciseId) {
+      setExercises((prev: LogExercise[]) =>
+        prev.map((ex) =>
+          ex.id === exerciseId
+            ? {
+                ...ex,
+                sets: ex.sets.map((s, idx) =>
+                  idx === ex.sets.length - 1
+                    ? { ...s, reps: prefill.reps, weight: prefill.weight }
+                    : s
+                ),
+              }
+            : ex
+        )
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.prefillSet]);
 
   // ── Local state ───────────────────────────────────────────────────────────
   const [, tick] = useState(0);
@@ -398,7 +422,21 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     setExercises((prev: LogExercise[]) =>
       prev.map((ex) =>
         ex.id === exerciseId
-          ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
+          ? {
+              ...ex,
+              sets: ex.sets.map((s) => {
+                const updatedSet = s.id === setId ? { ...s, [field]: value } : s;
+                // Auto-uncheck if reps or weight becomes 0 or invalid
+                if (s.id === setId && s.completed) {
+                  const reps = Number(field === "reps" ? value : s.reps);
+                  const weight = Number(field === "weight" ? value : s.weight);
+                  if (reps <= 0 || weight < 0 || isNaN(reps) || isNaN(weight)) {
+                    return { ...updatedSet, completed: false };
+                  }
+                }
+                return updatedSet;
+              }),
+            }
           : ex,
       ),
     );
@@ -424,6 +462,17 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     const exercise = exercises.find((ex) => ex.id === exerciseId);
     const set      = exercise?.sets.find((s) => s.id === setId);
 
+    // Validation: prevent completing sets with empty/invalid values
+    if (set && !set.completed) {
+      const reps = Number(set.reps);
+      const weight = Number(set.weight);
+      if (!set.reps || !set.weight || isNaN(reps) || reps <= 0 || isNaN(weight) || weight < 0) {
+        Alert.alert('Invalid Set', 'Please enter valid reps (> 0) and weight (≥ 0) before completing.');
+        return;
+      }
+    }
+
+    // If unchecking (set is already completed), allow without validation
     setExercises((prev: LogExercise[]) =>
       prev.map((ex) =>
         ex.id === exerciseId
@@ -457,8 +506,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 ...ex.sets,
                 {
                   id:        `${exerciseId}-set-${ex.sets.length}-${Date.now()}`,
-                  reps:      String(ex.defaultReps ?? ""),
-                  weight:    "0",
+                  reps:      "",
+                  weight:    "",
                   completed: false,
                   type:      "normal" as SetType,
                 },
@@ -783,6 +832,22 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                       set.type === "failure"  ? "F" :
                       String(index + 1);
 
+                    // Find previous workout data for this exercise (only completed sets)
+                    const prevWorkout = completedWorkouts
+                      .filter(w => w.exercises.some(ex => ex.originalExerciseId === exercise.originalExerciseId))
+                      .sort((a, b) => b.completedAt - a.completedAt)[0];
+                    
+                    const prevExercise = prevWorkout?.exercises.find(ex => ex.originalExerciseId === exercise.originalExerciseId);
+                    // Only use completed sets from previous workout
+                    const prevSet = (prevExercise?.sets[index]?.completed) ? prevExercise.sets[index] : undefined;
+
+                    const handlePrefillFromPrevious = () => {
+                      if (prevSet) {
+                        updateSet(exercise.id, set.id, "weight", String(prevSet.weight));
+                        updateSet(exercise.id, set.id, "reps", String(prevSet.reps));
+                      }
+                    };
+
                     return (
                       <View key={set.id} style={styles.setRow}>
                         <TouchableOpacity
@@ -792,12 +857,29 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                         >
                           <Text style={[styles.setNumber, { color: numColor }]}>{numLabel}</Text>
                         </TouchableOpacity>
-                        <Text style={[styles.setGridCell, styles.previousValue]}>-</Text>
+                        
+                        {/* PREVIOUS column - clickable to prefill */}
+                        <TouchableOpacity 
+                          style={[styles.setGridCell, styles.previousValue]}
+                          onPress={handlePrefillFromPrevious}
+                          disabled={!prevSet}
+                          activeOpacity={prevSet ? 0.7 : 1}
+                        >
+                          {prevSet ? (
+                            <Text style={styles.previousValueText}>
+                              {prevSet.weight}{settings.weightUnit} × {prevSet.reps}
+                            </Text>
+                          ) : (
+                            <Text style={styles.noPreviousText}>-</Text>
+                          )}
+                        </TouchableOpacity>
+                        
                         <TextInput
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.weight}
                           onChangeText={(val) => updateSet(exercise.id, set.id, "weight", val)}
                           keyboardType="decimal-pad"
+                          placeholder={prevSet ? `${prevSet.weight}` : "0"}
                           placeholderTextColor={theme.colors.muted}
                         />
                         <TextInput
@@ -805,6 +887,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                           value={set.reps}
                           onChangeText={(val) => updateSet(exercise.id, set.id, "reps", val)}
                           keyboardType="number-pad"
+                          placeholder={prevSet ? `${prevSet.reps}` : "0"}
                           placeholderTextColor={theme.colors.muted}
                         />
                         <TouchableOpacity
@@ -2182,4 +2265,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   settingHint: { color: theme.colors.muted, fontSize: theme.font.sizeXs, marginTop: 2 },
   settingValue: { color: theme.colors.accent, fontWeight: theme.font.weightBold },
+
+  /* Previous set values */
+  previousValueText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
+  noPreviousText: {
+    color: theme.colors.muted,
+    fontSize: theme.font.sizeSm,
+  },
 });

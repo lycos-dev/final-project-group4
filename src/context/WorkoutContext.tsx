@@ -247,8 +247,8 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
           ? ex.routineSets.map((s: any) => ({ ...s, completed: false }))
           : Array.from({ length: ex.defaultSets }, (_, i) => ({
               id: `${uniqueInstanceId}-set-${i}`,
-              reps: String(ex.defaultReps ?? ''),
-              weight: '0',
+              reps: '',
+              weight: '',
               completed: false,
               type: 'normal' as SetType,
             })),
@@ -290,15 +290,28 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const clearWorkout = (routineName: string = 'Custom Workout') => {
     if (exercises.length > 0) {
       const elapsed = getElapsedSeconds();
+      // Only save exercises that have at least one completed set
+      const exercisesToSave = exercises
+        .map(ex => ({
+          ...ex,
+          sets: ex.sets.filter(s => s.completed) // Only save completed sets
+        }))
+        .filter(ex => ex.sets.length > 0); // Only include exercises with completed sets
+      
+      if (exercisesToSave.length === 0) {
+        _resetState();
+        return;
+      }
+      
       const record: CompletedWorkout = {
         id: `${Date.now()}-${Math.random()}`,
         routineName,
-        exercises,
+        exercises: exercisesToSave,
         completedAt: Date.now(),
         durationSeconds: elapsed,
         durationMinutes: Math.round(elapsed / 60),
-        totalVolumeKg: calculateStats(exercises),
-        totalSets: calculateCompletedSets(exercises),
+        totalVolumeKg: calculateStats(exercisesToSave),
+        totalSets: calculateCompletedSets(exercisesToSave),
       };
       setCompletedWorkouts((prev) => [...prev, record]);
     }

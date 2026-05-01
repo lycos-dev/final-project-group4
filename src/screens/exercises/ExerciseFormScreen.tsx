@@ -46,7 +46,7 @@ export const ExerciseFormScreen = () => {
   const [imageUrl, setImageUrl]       = useState(editing?.imageUrl ?? '');
   const [stepsText, setStepsText]     = useState(stepsToText(editing?.steps ?? []));
   const [sets, setSets]               = useState(String(editing?.defaultSets ?? 3));
-  const [reps, setReps]               = useState(String(editing?.defaultReps ?? 10));
+  const [reps, setReps]               = useState('');
 
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [muscleOpen, setMuscleOpen] = useState(false);
@@ -77,7 +77,6 @@ export const ExerciseFormScreen = () => {
       imageUrl: imageUrl.trim() || undefined,
       steps: textToSteps(stepsText),
       defaultSets: Number(sets),
-      defaultReps: Number(reps),
     };
     if (editing) updateExercise({ ...editing, ...payload });
     else addExercise(payload);
