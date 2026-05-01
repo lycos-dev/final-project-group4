@@ -37,13 +37,13 @@ const ExerciseHeroImage = ({
   gradientColors: readonly [string, string];
 }) => (
   <View style={heroStyles.container}>
-    <ImageBackground
-      source={{ uri }}
-      style={heroStyles.image}
-      imageStyle={heroStyles.imageBorder}
-      resizeMode="cover"
-      accessibilityLabel={`Demonstration of ${name}`}
-    >
+      <ImageBackground
+        source={{ uri }}
+        style={heroStyles.image}
+        imageStyle={heroStyles.imageBorder}
+        resizeMode="cover"
+        accessibilityLabel={`Demonstration of ${name}`}
+      >
       <LinearGradient
         colors={gradientColors}
         style={heroStyles.gradient}

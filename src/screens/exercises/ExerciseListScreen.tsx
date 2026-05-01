@@ -12,6 +12,7 @@ import {
   UIManager,
   Platform,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -690,32 +691,34 @@ export const ExerciseListScreen = () => {
         onRequestClose={closeModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Ionicons name="pencil-outline" size={40} color={theme.colors.accent} />
-            <Text style={styles.modalTitle}>Rename Folder</Text>
-            <TextInput
-              value={renameFolderValue}
-              onChangeText={setRenameFolderValue}
-              style={styles.folderNameInput}
-              placeholderTextColor={theme.colors.muted}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnSecondary}
-                onPress={() => { setRenameFolderValue(''); closeModal(); }}
-              >
-                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtnPrimary, !renameFolderValue.trim() && { opacity: 0.4 }]}
-                onPress={handleRenameFolder}
-                disabled={!renameFolderValue.trim()}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Rename</Text>
-              </TouchableOpacity>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flexCentered}>
+            <View style={styles.modalContent}>
+              <Ionicons name="pencil-outline" size={40} color={theme.colors.accent} />
+              <Text style={styles.modalTitle}>Rename Folder</Text>
+              <TextInput
+                value={renameFolderValue}
+                onChangeText={setRenameFolderValue}
+                style={styles.folderNameInput}
+                placeholderTextColor={theme.colors.muted}
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalBtnSecondary}
+                  onPress={() => { setRenameFolderValue(''); closeModal(); }}
+                >
+                  <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtnPrimary, !renameFolderValue.trim() && { opacity: 0.4 }]}
+                  onPress={handleRenameFolder}
+                  disabled={!renameFolderValue.trim()}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>Rename</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -727,33 +730,35 @@ export const ExerciseListScreen = () => {
         onRequestClose={closeModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
-            <Text style={styles.modalTitle}>New Folder</Text>
-            <TextInput
-              placeholder="Folder name"
-              value={newFolderName}
-              onChangeText={setNewFolderName}
-              style={styles.folderNameInput}
-              placeholderTextColor={theme.colors.muted}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnSecondary}
-                onPress={() => { setNewFolderName(''); closeModal(); }}
-              >
-                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtnPrimary, !newFolderName.trim() && { opacity: 0.4 }]}
-                onPress={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Create</Text>
-              </TouchableOpacity>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flexCentered}>
+            <View style={styles.modalContent}>
+              <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
+              <Text style={styles.modalTitle}>New Folder</Text>
+              <TextInput
+                placeholder="Folder name"
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                style={styles.folderNameInput}
+                placeholderTextColor={theme.colors.muted}
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalBtnSecondary}
+                  onPress={() => { setNewFolderName(''); closeModal(); }}
+                >
+                  <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtnPrimary, !newFolderName.trim() && { opacity: 0.4 }]}
+                  onPress={handleCreateFolder}
+                  disabled={!newFolderName.trim()}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>Create</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1191,6 +1196,11 @@ const createStyles = (appTheme: typeof theme) => {
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing.lg,
+  },
+  flexCentered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: theme.colors.surface,

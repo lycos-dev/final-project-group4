@@ -13,6 +13,8 @@ import {
   Alert,
   Vibration,
   Keyboard,
+  KeyboardAvoidingView,
+  InteractionManager,
 } from "react-native";
 import { CustomToggle } from '../../components/ui/CustomToggle';
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -728,7 +730,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // ── Duration modal helpers ────────────────────────────────────────────────
   const openDurationModal = () => {
-    setDraftStart(startTime ? new Date(startTime) : new Date());
+    const validStart = startTime && !isNaN(startTime) ? new Date(startTime) : new Date();
+    setDraftStart(validStart);
     setDurationOpen(true);
   };
 
@@ -1236,7 +1239,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             </View>
 
             {/* Duration input fields */}
-            <View style={styles.adjustSection}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.adjustSection}>
               <Text style={styles.liveTimeLabel}>SET DURATION</Text>
               <View style={styles.inputRow}>
                 <View style={styles.durationInputWrap}>
@@ -1281,29 +1284,41 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <TouchableOpacity style={styles.applyBtn} onPress={applyTypedDuration} activeOpacity={0.7}>
                 <Text style={styles.applyBtnText}>Apply</Text>
               </TouchableOpacity>
-            </View>
+            </KeyboardAvoidingView>
 
              <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
              <View style={styles.startRow}>
                <TouchableOpacity
                  style={styles.startBtn}
-                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowDate(true); }}
+                 onPress={() => {
+                   Keyboard.dismiss();
+                   setDurationOpen(false);
+                   InteractionManager.runAfterInteractions(() => {
+                     setShowDate(true);
+                   });
+                 }}
                  activeOpacity={0.7}
                >
                  <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
                  <Text style={styles.startBtnText}>
-                   {draftStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                   {draftStart instanceof Date && !isNaN(draftStart.getTime()) ? draftStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                  </Text>
                </TouchableOpacity>
                <Text style={styles.startSeparator}>,</Text>
                <TouchableOpacity
                  style={styles.startBtn}
-                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowTime(true); }}
+                 onPress={() => {
+                   Keyboard.dismiss();
+                   setDurationOpen(false);
+                   InteractionManager.runAfterInteractions(() => {
+                     setShowTime(true);
+                   });
+                 }}
                  activeOpacity={0.7}
                >
                  <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
                  <Text style={styles.startBtnText}>
-                   {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                   {draftStart instanceof Date && !isNaN(draftStart.getTime()) ? draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                  </Text>
                </TouchableOpacity>
              </View>
@@ -1338,12 +1353,12 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
       {/* Date picker modal with backdrop so user can dismiss it */}
       {showDate && (
-        <Modal transparent animationType="fade" onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}>
-          <Pressable style={styles.modalOverlay} onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowDate(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowDate(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
             <View style={[styles.modalContent, styles.pickerModalContent]}>
               <View style={styles.pickerHeader}>
                 <Text style={styles.pickerTitle}>Select Date</Text>
-                <TouchableOpacity onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+                <TouchableOpacity onPress={() => { setShowDate(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
                   <Text style={styles.pickerDoneText}>Done</Text>
                 </TouchableOpacity>
               </View>
@@ -1355,7 +1370,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 themeVariant={isDark ? "dark" : "light"}
                 onChange={(_e, d) => {
                   if (d) {
-                    const next = new Date(draftStart);
+                    const base = draftStart instanceof Date && !isNaN(draftStart.getTime()) ? draftStart : new Date();
+                    const next = new Date(base);
                     next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
                     if (next.getTime() > Date.now()) {
                       Alert.alert('Invalid Date', 'You cannot select a future date.');
@@ -1372,12 +1388,12 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
       {/* Time picker modal with backdrop so user can dismiss it */}
       {showTime && (
-        <Modal transparent animationType="fade" onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}>
-          <Pressable style={styles.modalOverlay} onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowTime(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowTime(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
             <View style={[styles.modalContent, styles.pickerModalContent]}>
               <View style={styles.pickerHeader}>
                 <Text style={styles.pickerTitle}>Select Time</Text>
-                <TouchableOpacity onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+                <TouchableOpacity onPress={() => { setShowTime(false); InteractionManager.runAfterInteractions(() => setDurationOpen(true)); }}>
                   <Text style={styles.pickerDoneText}>Done</Text>
                 </TouchableOpacity>
               </View>
@@ -1388,7 +1404,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 themeVariant={isDark ? "dark" : "light"}
                 onChange={(_e, d) => {
                   if (d) {
-                    const next = new Date(draftStart);
+                    const base = draftStart instanceof Date && !isNaN(draftStart.getTime()) ? draftStart : new Date();
+                    const next = new Date(base);
                     next.setHours(d.getHours(), d.getMinutes());
                     if (next.getTime() > Date.now()) {
                       Alert.alert('Invalid Time', 'You cannot select a future time.');

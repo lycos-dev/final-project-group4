@@ -29,7 +29,7 @@ const EQUIPMENT_TYPES = [
   'Other',
 ];
 
-const EXERCISE_VIEW_TYPES = ['All Exercise', 'Favorite Exercise'] as const;
+const EXERCISE_VIEW_TYPES = ['All Exercises', 'Favorite Exercises'] as const;
 type ExerciseViewType = (typeof EXERCISE_VIEW_TYPES)[number];
 
 export const AddExerciseScreen = ({ navigation, route }: Props) => {
@@ -323,10 +323,11 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
       {/* Add Button */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, selectedExercises.size === 0 && styles.addButtonDisabled]}
           onPress={handleAddExercises}
+          disabled={selectedExercises.size === 0}
         >
-          <Text style={styles.addButtonText}>
+          <Text style={[styles.addButtonText, selectedExercises.size === 0 && styles.addButtonTextDisabled]}>
             Add {selectedExercises.size} Exercise{selectedExercises.size !== 1 ? 's' : ''}
           </Text>
         </TouchableOpacity>
@@ -494,10 +495,16 @@ const createStyles = (appTheme: Theme) => {
       paddingVertical: theme.spacing.md,
       alignItems: 'center',
     },
+    addButtonDisabled: {
+      backgroundColor: theme.colors.muted,
+    },
     addButtonText: {
       color: theme.colors.accentText,
       fontSize: theme.font.sizeMd,
       fontWeight: theme.font.weightBold,
+    },
+    addButtonTextDisabled: {
+      color: theme.colors.bg,
     },
     modalOverlay: {
       flex: 1,

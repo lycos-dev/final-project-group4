@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, ScrollView, StyleSheet, ViewStyle } from 'react-native';
+import { View, ScrollView, StyleSheet, ViewStyle, Platform, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../theme/theme';
@@ -20,13 +20,23 @@ export const Screen = ({ children, scroll = false, padded = true, style, forceTo
       style={[styles.safe, { backgroundColor: appTheme.colors.bg }]} 
       edges={forceTopSafe ? ['top', 'left', 'right'] : ['left', 'right']}
     >
-      {scroll ? (
-        <ScrollView contentContainerStyle={[styles.scroll, inner, style]} keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[styles.flex, inner, style]}>{children}</View>
-      )}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : -50}
+      >
+        {scroll ? (
+          <ScrollView 
+            contentContainerStyle={[styles.scroll, inner, style]} 
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[styles.flex, inner, style]}>{children}</View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
