@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Exercise } from '../types';
+import { useAuth } from './AuthContext';
 
 export type SetType = 'normal' | 'warmup' | 'failure' | 'drop';
 export type WeightUnit = 'kg' | 'lb';
@@ -122,20 +123,39 @@ const EXERCISE_HISTORY_KEY = '@nexa/exercise_set_history';
 const WORKOUTS_KEY = '@nexa/completed_workouts';
 const SETTINGS_KEY = '@nexa/workout_settings';
 
+const getUserKey = (email: string | undefined, key: string) => {
+  if (!email) return key; // fallback for no user
+  return `${key}_${email.toLowerCase()}`;
+};
+
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const userEmail = user?.email;
+  
+  const getKey = (key: string) => getUserKey(userEmail, key);
+  
   const [exercises, setExercisesState] = useState<LogExercise[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(new Set());
   const [exerciseHistory, setExerciseHistory] = useState<Record<string, { setCount: number; reps: string; weight: string }>>({});
 
-  // Load persisted data on mount
+  // Clear state when user changes
+  useEffect(() => {
+    setExercisesState([]);
+    setCompletedWorkouts([]);
+    setSettings(DEFAULT_SETTINGS);
+    setFavoriteExerciseIds(new Set());
+    setExerciseHistory({});
+  }, [userEmail]);
+
+  // Load persisted data on mount - depends on userEmail
   useEffect(() => {
     let mounted = true;
     const loadData = async () => {
       try {
         // Load completed workouts
-        const workoutsRaw = await AsyncStorage.getItem(WORKOUTS_KEY);
+        const workoutsRaw = await AsyncStorage.getItem(getKey(WORKOUTS_KEY));
         if (mounted && workoutsRaw) {
           const parsed = JSON.parse(workoutsRaw);
           if (Array.isArray(parsed)) {
@@ -143,7 +163,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         // Load settings
-        const settingsRaw = await AsyncStorage.getItem(SETTINGS_KEY);
+        const settingsRaw = await AsyncStorage.getItem(getKey(SETTINGS_KEY));
         if (mounted && settingsRaw) {
           const parsed = JSON.parse(settingsRaw);
           if (parsed && typeof parsed === 'object') {
@@ -151,7 +171,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         // Load favorites
-        const favRaw = await AsyncStorage.getItem(FAVORITES_KEY);
+        const favRaw = await AsyncStorage.getItem(getKey(FAVORITES_KEY));
         if (mounted && favRaw) {
           const parsed = JSON.parse(favRaw);
           if (Array.isArray(parsed)) {
@@ -159,7 +179,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         // Load exercise set history
-        const historyRaw = await AsyncStorage.getItem(EXERCISE_HISTORY_KEY);
+        const historyRaw = await AsyncStorage.getItem(getKey(EXERCISE_HISTORY_KEY));
         if (mounted && historyRaw) {
           const parsed = JSON.parse(historyRaw);
           if (parsed && typeof parsed === 'object') {
@@ -172,27 +192,31 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     };
     loadData();
     return () => { mounted = false; };
-  }, []);
+  }, [userEmail]);
 
   // Persist completed workouts when changed
   useEffect(() => {
-    AsyncStorage.setItem(WORKOUTS_KEY, JSON.stringify(completedWorkouts)).catch(() => {});
-  }, [completedWorkouts]);
+    const key = getKey(WORKOUTS_KEY);
+    AsyncStorage.setItem(key, JSON.stringify(completedWorkouts)).catch(() => {});
+  }, [completedWorkouts, userEmail]);
 
   // Persist settings when changed
   useEffect(() => {
-    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)).catch(() => {});
-  }, [settings]);
+    const key = getKey(SETTINGS_KEY);
+    AsyncStorage.setItem(key, JSON.stringify(settings)).catch(() => {});
+  }, [settings, userEmail]);
 
   // Persist favorites when changed
   useEffect(() => {
-    AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify([...favoriteExerciseIds])).catch(() => {});
-  }, [favoriteExerciseIds]);
+    const key = getKey(FAVORITES_KEY);
+    AsyncStorage.setItem(key, JSON.stringify([...favoriteExerciseIds])).catch(() => {});
+  }, [favoriteExerciseIds, userEmail]);
 
   // Persist exercise set history when changed
   useEffect(() => {
-    AsyncStorage.setItem(EXERCISE_HISTORY_KEY, JSON.stringify(exerciseHistory)).catch(() => {});
-  }, [exerciseHistory]);
+    const key = getKey(EXERCISE_HISTORY_KEY);
+    AsyncStorage.setItem(key, JSON.stringify(exerciseHistory)).catch(() => {});
+  }, [exerciseHistory, userEmail]);
 
   // ── timer internals ───────────────────────────────────────────────
   const [isActive, setIsActive] = useState(false);
