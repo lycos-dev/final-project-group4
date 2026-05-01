@@ -133,9 +133,9 @@ const WorkoutMiniBar = () => {
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
   const s = elapsed % 60;
-  // Format: "1h 02m" when ≥ 1 hour, "MM:SS" otherwise
+  // Format: "1h 2m 3s" when ≥ 1 hour, "MM:SS" otherwise
   const timeText = h > 0
-    ? `${h}h ${String(m).padStart(2, '0')}m`
+    ? `${h}h ${m}m ${s}s`
     : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
   const expand = () => {

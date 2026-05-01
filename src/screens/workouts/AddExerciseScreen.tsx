@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Modal, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { useExercises } from '../../context/ExerciseContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useWorkout } from '../../context/WorkoutContext';
+import { useWorkout, LogExercise, SetType } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { Theme } from '../../theme/theme';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
@@ -26,16 +26,15 @@ const EQUIPMENT_TYPES = [
 const EXERCISE_VIEW_TYPES = ['All Exercise', 'Favorite Exercise'] as const;
 type ExerciseViewType = (typeof EXERCISE_VIEW_TYPES)[number];
 
-export const AddExerciseScreen = ({ navigation }: Props) => {
+export const AddExerciseScreen = ({ navigation, route }: Props) => {
   const { theme: appTheme } = useTheme();
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const { exercises } = useExercises();
-  const { addExercises } = useWorkout();
+  const { addExercises, setExercises, settings, favoriteExerciseIds, toggleFavoriteExercise } = useWorkout();
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
   const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMuscleModal, setShowMuscleModal] = useState(false);
   const [selectedExerciseView, setSelectedExerciseView] = useState<ExerciseViewType>('All Exercise');
@@ -47,20 +46,10 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
       const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
       const matchesMuscle = selectedMuscle === 'All Muscles' || e.muscleGroup === selectedMuscle;
       const matchesEquipment = selectedEquipment === 'All Equipment' || e.equipment === selectedEquipment;
-      const matchesFavorite = selectedExerciseView === 'All Exercise' || favorites.has(e.id);
+      const matchesFavorite = selectedExerciseView === 'All Exercise' || favoriteExerciseIds.has(e.id);
       return matchesSearch && matchesMuscle && matchesEquipment && matchesFavorite;
     });
-  }, [exercises, search, selectedMuscle, selectedEquipment, selectedExerciseView, favorites]);
-
-  const toggleFavorite = (exerciseId: string) => {
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(exerciseId)) {
-      newFavorites.delete(exerciseId);
-    } else {
-      newFavorites.add(exerciseId);
-    }
-    setFavorites(newFavorites);
-  };
+  }, [exercises, search, selectedMuscle, selectedEquipment, selectedExerciseView, favoriteExerciseIds]);
 
   const toggleExerciseSelection = (exerciseId: string) => {
     const newSelected = new Set(selectedExercises);
@@ -74,6 +63,39 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
 
   const handleAddExercises = () => {
     const toAdd = filtered.filter((ex) => selectedExercises.has(ex.id));
+    const replaceExerciseId = route.params?.replaceExerciseId;
+
+    if (replaceExerciseId) {
+      if (toAdd.length === 0) return;
+      if (toAdd.length > 1) {
+        Alert.alert('Choose one exercise', 'Select exactly one exercise when replacing.');
+        return;
+      }
+
+      const selected = toAdd[0];
+      const uniqueInstanceId = `${selected.id}-${Date.now()}-${Math.random()}`;
+      const replacement: LogExercise = {
+        ...selected,
+        id: uniqueInstanceId,
+        originalExerciseId: selected.id,
+        notes: '',
+        restTimerDuration: ((selected as any).restTimerDuration ?? settings.defaultRestSeconds),
+        sets: Array.from({ length: selected.defaultSets }, (_, i) => ({
+          id: `${uniqueInstanceId}-set-${i}`,
+          reps: String(selected.defaultReps ?? ''),
+          weight: '0',
+          completed: false,
+          type: 'normal' as SetType,
+        })),
+      };
+
+      setExercises((prev) =>
+        prev.map((exercise) => (exercise.id === replaceExerciseId ? replacement : exercise)),
+      );
+      navigation.goBack();
+      return;
+    }
+
     addExercises(toAdd);
     navigation.goBack();
   };
@@ -186,14 +208,14 @@ export const AddExerciseScreen = ({ navigation }: Props) => {
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation();
-                  toggleFavorite(item.id);
+                  toggleFavoriteExercise(item.id);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons
-                  name={favorites.has(item.id) ? 'heart' : 'heart-outline'}
+                  name={favoriteExerciseIds.has(item.id) ? 'heart' : 'heart-outline'}
                   size={24}
-                  color={favorites.has(item.id) ? theme.colors.accent : theme.colors.muted}
+                  color={favoriteExerciseIds.has(item.id) ? theme.colors.accent : theme.colors.muted}
                 />
               </TouchableOpacity>
               {selectedExercises.has(item.id) && (

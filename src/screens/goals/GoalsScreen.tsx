@@ -260,7 +260,7 @@ export const GoalsScreen = () => {
               onPress={completed ? undefined : () => openUpdateModal(goal)}
               style={[
                 styles.goalCard,
-                completed && styles.goalCardCompleted,
+                ...(completed ? [styles.goalCardCompleted] : []),
               ]}
             >
               <View style={styles.goalTopRow}>

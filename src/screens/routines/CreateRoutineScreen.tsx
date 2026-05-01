@@ -14,10 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { Button } from '../../components/ui/Button';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { Routine, RoutineExercise, RoutineFolder } from '../../types';
 import { useRoutine } from '../../context/RoutineContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRoutine'>;
 
@@ -52,61 +53,353 @@ type ActiveModal =
   | { type: 'folderPicker' }
   | { type: 'createFolder' };
 
-// ── BottomSheetModal: wrapper that animates modal content up while overlay appears instantly ──
-const BottomSheetModal = ({
-  visible,
-  onClose,
-  children,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) => {
-  const slideAnim = useRef(new Animated.Value(300)).current;
+// Styles factory (created at runtime with the active theme)
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    cancelText: {
+      color: theme.colors.accent,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+    },
+    headerTitle: {
+      fontSize: theme.font.sizeLg,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+    },
+    saveButton: {
+      backgroundColor: theme.colors.accent,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+    },
+    saveButtonText: {
+      color: theme.colors.accentText,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+    },
 
-  useEffect(() => {
-    if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        bounciness: 4,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 300,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
+    titleSection: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    titleInput: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+    },
 
-  if (!visible) return null;
+    folderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    folderRowText: {
+      flex: 1,
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.muted,
+    },
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      {/* Overlay appears instantly — no slide animation on the background */}
-      <TouchableOpacity
-        style={styles.sheetOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        {/* Only the sheet content slides up */}
-        <Animated.View
-          style={{ transform: [{ translateY: slideAnim }] }}
-          // Prevent overlay press from firing when tapping inside the sheet
-          onStartShouldSetResponder={() => true}
-        >
-          {children}
-        </Animated.View>
-      </TouchableOpacity>
-    </Modal>
-  );
-};
+    content: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.lg,
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 300,
+    },
+    emptyTitle: {
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeSm,
+      textAlign: 'center',
+      maxWidth: 200,
+    },
+    exercisesList: {
+      gap: theme.spacing.md,
+      paddingBottom: theme.spacing.lg,
+    },
+    exerciseCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    exerciseHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: theme.spacing.md,
+    },
+    exerciseHeaderContent: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    exerciseIcon: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor: theme.colors.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: theme.spacing.md,
+    },
+    exerciseTitle: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.accent,
+    },
+    menuButton: { padding: theme.spacing.sm },
+    notesInput: {
+      backgroundColor: theme.colors.bg,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      color: theme.colors.text,
+      fontSize: theme.font.sizeSm,
+      marginBottom: theme.spacing.md,
+    },
+    restTimerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
+    },
+    restTimerText: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+      marginLeft: theme.spacing.sm,
+    },
+    setsContainer: { marginBottom: theme.spacing.md },
+    setsHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    setRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    setGridCell: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.text,
+    },
+    setLabel: { fontWeight: theme.font.weightBold, color: theme.colors.muted },
+    weightLabel: { fontWeight: theme.font.weightBold, color: theme.colors.muted },
+    repsLabel: { fontWeight: theme.font.weightBold, color: theme.colors.muted },
+    setNumber: { fontWeight: theme.font.weightBold },
+    setInput: {
+      backgroundColor: theme.colors.bg,
+      borderRadius: theme.radius.sm,
+      paddingVertical: theme.spacing.xs,
+      color: theme.colors.text,
+      textAlign: 'center',
+    },
+    addSetButton: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    addSetButtonText: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+    },
+    actionsSection: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.lg,
+    },
+
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.isDark ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.35)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      width: '100%',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    modalIconWrap: {
+      marginBottom: theme.spacing.sm,
+    },
+    modalTitle: {
+      fontSize: theme.font.sizeLg,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      textAlign: 'center',
+    },
+    modalSubtitle: {
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.muted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.sm,
+      width: '100%',
+    },
+    modalBtnSecondary: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      alignItems: 'center',
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    modalBtnSecondaryText: {
+      color: theme.colors.text,
+      fontWeight: theme.font.weightBold,
+      fontSize: theme.font.sizeMd,
+    },
+    modalBtnPrimary: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      alignItems: 'center',
+      backgroundColor: theme.colors.accent,
+    },
+    modalBtnPrimaryText: {
+      color: theme.colors.accentText,
+      fontWeight: theme.font.weightBold,
+      fontSize: theme.font.sizeMd,
+    },
+    modalButton: { marginTop: theme.spacing.md },
+
+    folderNameInput: {
+      width: '100%',
+      backgroundColor: theme.colors.bg,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+
+    sheetOverlay: {
+      flex: 1,
+      backgroundColor: theme.isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.28)',
+      justifyContent: 'flex-end',
+    },
+    sheetContent: {
+      backgroundColor: theme.colors.surface,
+      borderTopLeftRadius: theme.radius.xl,
+      borderTopRightRadius: theme.radius.xl,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.xxl,
+      borderTopWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    sheetTitle: {
+      fontSize: theme.font.sizeLg,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      paddingHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+    },
+
+    folderOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    folderOptionText: {
+      flex: 1,
+      fontSize: theme.font.sizeMd,
+      color: theme.colors.text,
+    },
+    newFolderBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.lg,
+    },
+    newFolderBtnText: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.accent,
+    },
+
+    timerOption: {
+      width: '100%',
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      backgroundColor: theme.colors.bg,
+      borderRadius: theme.radius.md,
+      alignItems: 'center',
+    },
+    timerOptionSelected: { backgroundColor: theme.colors.accent },
+    timerOptionText: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+      color: theme.colors.text,
+    },
+
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      gap: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    menuItemDanger: { borderBottomWidth: 0 },
+    menuItemText: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+      color: theme.colors.text,
+    },
+  });
 
 export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const {
@@ -148,6 +441,53 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const originalExerciseCount = useRef(editing?.exercises?.length ?? 0);
 
   const closeModal = () => setActiveModal(null);
+
+  // Use the app theme from context so styles adapt to light/dark modes
+  const { theme: selectedTheme, isDark } = useTheme();
+  const theme = { ...selectedTheme, isDark } as any;
+  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+
+  // BottomSheetModal defined inside component so it can access dynamic styles
+  const BottomSheetModal = ({
+    visible,
+    onClose,
+    children,
+  }: {
+    visible: boolean;
+    onClose: () => void;
+    children: React.ReactNode;
+  }) => {
+    const slideAnim = useRef(new Animated.Value(300)).current;
+
+    useEffect(() => {
+      if (visible) {
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 4,
+        }).start();
+      } else {
+        Animated.timing(slideAnim, {
+          toValue: 300,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    }, [visible]);
+
+    if (!visible) return null;
+
+    return (
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={onClose}>
+          <Animated.View style={{ transform: [{ translateY: slideAnim }] }} onStartShouldSetResponder={() => true}>
+            {children}
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
 
   // ── Fix #1: Clear temp routine on initial mount so back-navigation doesn't restore stale exercises ──
   useEffect(() => {
@@ -277,7 +617,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
     setExercises((prev) => prev.filter((e) => (e.instanceId || e.id) !== exerciseInstanceId));
     setExerciseStates((prev) => {
       const m = new Map(prev);
-      m.delete(exerciseId);
+      m.delete(exerciseInstanceId);
       return m;
     });
     setIsDirty(true);
@@ -286,8 +626,8 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const updateExerciseNote = (exerciseInstanceId: string, note: string) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
-      const s = m.get(exerciseId);
-      if (s) m.set(exerciseId, { ...s, notes: note });
+      const s = m.get(exerciseInstanceId);
+      if (s) m.set(exerciseInstanceId, { ...s, notes: note });
       return m;
     });
     setIsDirty(true);
@@ -296,8 +636,8 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const updateRestTimer = (exerciseInstanceId: string, duration: number) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
-      const s = m.get(exerciseId);
-      if (s) m.set(exerciseId, { ...s, restTimerDuration: duration });
+      const s = m.get(exerciseInstanceId);
+      if (s) m.set(exerciseInstanceId, { ...s, restTimerDuration: duration });
       return m;
     });
     closeModal();
@@ -325,15 +665,15 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   const addSet = (exerciseInstanceId: string) => {
     setExerciseStates((prev) => {
       const m = new Map(prev);
-      const s = m.get(exerciseId);
+      const s = m.get(exerciseInstanceId);
       if (s) {
-        const ex = exercises.find((e) => e.id === exerciseId);
-        m.set(exerciseId, {
+        const ex = exercises.find((e) => e.id === exerciseInstanceId);
+        m.set(exerciseInstanceId, {
           ...s,
           sets: [
             ...s.sets,
             {
-              id: `${exerciseId}-set-${s.sets.length}-${Date.now()}`,
+              id: `${exerciseInstanceId}-set-${s.sets.length}-${Date.now()}`,
               reps: String(ex?.defaultReps ?? 10),
               weight: '0',
             },
@@ -439,14 +779,15 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         ) : (
           <View style={styles.exercisesList}>
             {exercises.map((exercise) => {
-              const state = exerciseStates.get(exercise.id) ?? {
+              const exerciseKey = exercise.instanceId || exercise.id;
+              const state = exerciseStates.get(exerciseKey) ?? {
                 notes: '',
                 restTimerDuration: 0,
                 sets: [],
               };
 
               return (
-                <View key={exercise.id} style={styles.exerciseCard}>
+                <View key={exerciseKey} style={styles.exerciseCard}>
                   {/* ── Fix #5: Exercise header — title is NOT touchable, only the 3-dot button ── */}
                   <View style={styles.exerciseHeader}>
                     <View style={styles.exerciseHeaderContent}>
@@ -459,7 +800,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                     <TouchableOpacity
                       style={styles.menuButton}
                       onPress={() =>
-                        setActiveModal({ type: 'exerciseMenu', exerciseId: exercise.id })
+                        setActiveModal({ type: 'exerciseMenu', exerciseId: exerciseKey })
                       }
                     >
                       <Ionicons
@@ -474,7 +815,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   <TextInput
                     placeholder="Add routine notes here"
                     value={state.notes}
-                    onChangeText={(text) => updateExerciseNote(key, text)}
+                    onChangeText={(text) => updateExerciseNote(exerciseKey, text)}
                     style={styles.notesInput}
                     placeholderTextColor={theme.colors.muted}
                   />
@@ -483,7 +824,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                   <TouchableOpacity
                     style={styles.restTimerButton}
                     onPress={() =>
-                      setActiveModal({ type: 'restTimer', exerciseId: exercise.id })
+                      setActiveModal({ type: 'restTimer', exerciseId: exerciseKey })
                     }
                   >
                     <Ionicons
@@ -530,7 +871,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.weight}
                           onChangeText={(val) =>
-                            updateSet(exercise.id, set.id, 'weight', val)
+                            updateSet(exerciseKey, set.id, 'weight', val)
                           }
                           keyboardType="decimal-pad"
                           placeholderTextColor={theme.colors.muted}
@@ -539,7 +880,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                           style={[styles.setGridCell, styles.setInput]}
                           value={set.reps}
                           onChangeText={(val) =>
-                            updateSet(exercise.id, set.id, 'reps', val)
+                            updateSet(exerciseKey, set.id, 'reps', val)
                           }
                           keyboardType="number-pad"
                           placeholderTextColor={theme.colors.muted}
@@ -550,7 +891,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
 
                   <TouchableOpacity
                     style={styles.addSetButton}
-                    onPress={() => addSet(key)}
+                    onPress={() => addSet(exerciseKey)}
                   >
                     <Text style={styles.addSetButtonText}>+ Add Set</Text>
                   </TouchableOpacity>
@@ -562,7 +903,10 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
       </ScrollView>
 
       {/* ── Add Exercise Button ────────────────────────────────────────── */}
-      <View style={styles.actionsSection}>
+      <View style={[
+        styles.actionsSection,
+        { paddingBottom: theme.spacing.lg + (insets.bottom ?? 0) },
+      ]}>
         <Button title="+ Add exercise" onPress={handleAddExercise} fullWidth />
       </View>
 
@@ -877,358 +1221,3 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
   );
 };
 
-// ── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  cancelText: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  headerTitle: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-  },
-  saveButtonText: {
-    color: theme.colors.accentText,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-  },
-
-  /* ── Title ─────────────────────────────────────────────────────────── */
-  titleSection: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  titleInput: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-  },
-
-  /* ── Folder Row ────────────────────────────────────────────────────── */
-  folderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  folderRowText: {
-    flex: 1,
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-  },
-
-  /* ── Content ───────────────────────────────────────────────────────── */
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 300,
-  },
-  emptyTitle: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    textAlign: 'center',
-    maxWidth: 200,
-  },
-  exercisesList: {
-    gap: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
-  },
-  exerciseCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  exerciseHeaderContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  exerciseIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: theme.colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  exerciseTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.accent,
-  },
-  menuButton: { padding: theme.spacing.sm },
-  notesInput: {
-    backgroundColor: theme.colors.bg,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    color: theme.colors.text,
-    fontSize: theme.font.sizeSm,
-    marginBottom: theme.spacing.md,
-  },
-  restTimerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  restTimerText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    marginLeft: theme.spacing.sm,
-  },
-  setsContainer: { marginBottom: theme.spacing.md },
-  setsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  setRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  setGridCell: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.text,
-  },
-  setLabel:   { fontWeight: theme.font.weightBold, color: theme.colors.muted },
-  weightLabel:{ fontWeight: theme.font.weightBold, color: theme.colors.muted },
-  repsLabel:  { fontWeight: theme.font.weightBold, color: theme.colors.muted },
-  setNumber:  { fontWeight: theme.font.weightBold },
-  setInput: {
-    backgroundColor: theme.colors.bg,
-    borderRadius: theme.radius.sm,
-    paddingVertical: theme.spacing.xs,
-    color: theme.colors.text,
-    textAlign: 'center',
-  },
-  addSetButton: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  addSetButtonText: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  actionsSection: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
-  },
-
-  /* ── Shared Modal Shell ─────────────────────────────────────────────── */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.xl,
-    width: '100%',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  modalIconWrap: {
-    marginBottom: theme.spacing.sm,
-  },
-  modalTitle: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    width: '100%',
-  },
-  modalBtnSecondary: {
-    flex: 1,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  modalBtnSecondaryText: {
-    color: theme.colors.text,
-    fontWeight: theme.font.weightBold,
-    fontSize: theme.font.sizeMd,
-  },
-  modalBtnPrimary: {
-    flex: 1,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-    backgroundColor: theme.colors.accent,
-  },
-  modalBtnPrimaryText: {
-    color: theme.colors.accentText,
-    fontWeight: theme.font.weightBold,
-    fontSize: theme.font.sizeMd,
-  },
-  modalButton: { marginTop: theme.spacing.md },
-
-  /* ── Folder Picker Input ─────────────────────────────────────────────── */
-  folderNameInput: {
-    width: '100%',
-    backgroundColor: theme.colors.bg,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-
-  /* ── Bottom Sheet ────────────────────────────────────────────────────── */
-  sheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  sheetContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
-    borderTopWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  sheetTitle: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-  },
-
-  /* ── Folder List Options ─────────────────────────────────────────────── */
-  folderOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  folderOptionText: {
-    flex: 1,
-    fontSize: theme.font.sizeMd,
-    color: theme.colors.text,
-  },
-  newFolderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
-  },
-  newFolderBtnText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.accent,
-  },
-
-  /* ── Rest Timer Options ──────────────────────────────────────────────── */
-  timerOption: {
-    width: '100%',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: theme.colors.bg,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-  },
-  timerOptionSelected: { backgroundColor: theme.colors.accent },
-  timerOptionText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
-  },
-
-  /* ── Exercise Menu ───────────────────────────────────────────────────── */
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  menuItemDanger: { borderBottomWidth: 0 },
-  menuItemText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
-  },
-});

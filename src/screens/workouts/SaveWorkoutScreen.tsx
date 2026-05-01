@@ -17,7 +17,7 @@ import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme } from '../../theme/theme';
+import { Theme } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SaveWorkout'>;
 
@@ -186,7 +186,7 @@ export const SaveWorkoutScreen = ({ navigation, route }: Props) => {
   );
 };
 
-const createStyles = (appTheme: typeof theme) =>
+const createStyles = (appTheme: Theme) =>
   StyleSheet.create({
     header: {
       paddingHorizontal: appTheme.spacing.lg,

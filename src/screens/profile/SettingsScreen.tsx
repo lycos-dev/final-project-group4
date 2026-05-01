@@ -7,7 +7,7 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { theme } from '../../theme/theme';
+import { Theme } from '../../theme/theme';
 
 export const SettingsScreen = () => {
   const { settings, updateSettings } = useProfile();
@@ -74,12 +74,12 @@ export const SettingsScreen = () => {
         </View>
       </Card>
 
-      <Button title="Log Out" variant="destructive" onPress={logout} style={{ marginTop: theme.spacing.lg }} />
+      <Button title="Log Out" variant="destructive" onPress={logout} style={{ marginTop: appTheme.spacing.lg }} />
     </Screen>
   );
 };
 
-const createStyles = (appTheme: typeof theme) =>
+const createStyles = (appTheme: Theme) =>
   StyleSheet.create({
     section: {
       color: appTheme.colors.muted,

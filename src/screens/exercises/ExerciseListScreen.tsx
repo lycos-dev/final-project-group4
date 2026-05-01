@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,10 +8,10 @@ import {
   Modal,
   TextInput,
   Animated,
-  PanResponder,
   LayoutAnimation,
   UIManager,
   Platform,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,6 +24,7 @@ import { RootStackParamList } from '../../navigation/RootNavigator';
 import { theme } from '../../theme/theme';
 import { useRoutine } from '../../context/RoutineContext';
 import { Routine, RoutineFolder } from '../../types';
+import { useWorkout } from '../../context/WorkoutContext';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -102,54 +103,20 @@ const BottomSheetModal = ({
   );
 };
 
-// ── DraggableRoutineCard ──────────────────────────────────────────────────────
-interface DraggableRoutineCardProps {
-  routine: Routine;
-  onMenuPress: (routine: Routine) => void;
-  onDragStart: (routine: Routine, pageY: number) => void;
-  isDragging: boolean;
-}
-
-const DraggableRoutineCard = ({
+// ── RoutineCard ──────────────────────────────────────────────────────────────
+const RoutineCard = ({
   routine,
   onMenuPress,
-  onDragStart,
-  isDragging,
-}: DraggableRoutineCardProps) => {
+}: {
+  routine: Routine;
+  onMenuPress: (routine: Routine) => void;
+}) => {
   const { theme: appTheme } = useTheme();
   const theme = appTheme;
   const styles = createStyles(appTheme);
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        Animated.spring(scale, { toValue: 1.04, useNativeDriver: true }).start();
-        onDragStart(routine, evt.nativeEvent.pageY);
-      },
-      onPanResponderRelease: () => {
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
-      },
-    })
-  ).current;
 
   return (
-    <Animated.View
-      style={[
-        styles.routineCard,
-        isDragging && styles.routineCardDragging,
-        { transform: [{ scale }] },
-      ]}
-    >
-      {/* Drag handle — hold to drag */}
-      <View style={styles.dragHandle} {...panResponder.panHandlers}>
-        <Ionicons name="reorder-three-outline" size={20} color={theme.colors.muted} />
-      </View>
-
+    <View style={styles.routineCard}>
       <View style={styles.routineCardLeft}>
         <View style={styles.routineCardIcon}>
           <MaterialCommunityIcons name="dumbbell" size={18} color={theme.colors.accent} />
@@ -170,7 +137,7 @@ const DraggableRoutineCard = ({
       >
         <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.muted} />
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 };
 
@@ -183,22 +150,43 @@ export const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const { routines, folders, deleteRoutine, deleteFolder, addFolder, assignRoutineToFolder } =
     useRoutine();
+  const { isActive, exercises, setMinimized, discardWorkout } = useWorkout();
+  const handleStartNewWorkout = () => {
+    if (!isActive) {
+      nav.navigate('LogWorkout', { exercisesToAdd: [] });
+      return;
+    }
+
+    Alert.alert(
+      'Workout in progress',
+      'You already have an active workout. Do you want to continue it or start a new one?',
+      [
+        {
+          text: 'Continue Current',
+          onPress: () => {
+            setMinimized(false);
+            nav.navigate('LogWorkout', {});
+          },
+        },
+        {
+          text: 'Start New',
+          style: 'destructive',
+          onPress: () => {
+            if (exercises.length > 0) discardWorkout();
+            nav.navigate('LogWorkout', { exercisesToAdd: [] });
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  };
+
 
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
-  // ── Drag state ──────────────────────────────────────────────────────────────
-  const [draggingRoutine, setDraggingRoutine] = useState<Routine | null>(null);
-  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null); // folderId | 'unfoldered'
-  const floatAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const dropZoneLayouts = useRef<Record<string, { y: number; height: number }>>({});
-  const scrollOffsetY = useRef(0);
-
-  // We need a ref to draggingRoutine/hoveredTarget inside the PanResponder
-  const draggingRoutineRef = useRef<Routine | null>(null);
-  const hoveredTargetRef = useRef<string | null>(null);
 
   const closeModal = () => setActiveModal(null);
 
@@ -212,56 +200,6 @@ export const ExerciseListScreen = () => {
 
   const unfolderedRoutines = routines.filter((r) => !r.folderId);
   const routinesInFolder = (folderId: string) => routines.filter((r) => r.folderId === folderId);
-
-  // ── Drag handlers ────────────────────────────────────────────────────────────
-  const handleDragStart = useCallback((routine: Routine, pageY: number) => {
-    draggingRoutineRef.current = routine;
-    setDraggingRoutine(routine);
-    floatAnim.setValue({ x: 0, y: pageY - 30 });
-  }, []);
-
-  const handleDragMove = useCallback((pageY: number) => {
-    floatAnim.setValue({ x: 0, y: pageY - 30 });
-    const absoluteY = pageY + scrollOffsetY.current;
-    let found: string | null = null;
-    for (const [key, zone] of Object.entries(dropZoneLayouts.current)) {
-      if (absoluteY >= zone.y && absoluteY <= zone.y + zone.height) {
-        found = key;
-        break;
-      }
-    }
-    if (found !== hoveredTargetRef.current) {
-      hoveredTargetRef.current = found;
-      setHoveredTarget(found);
-    }
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    const routine = draggingRoutineRef.current;
-    const target = hoveredTargetRef.current;
-    if (routine && target !== null) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      assignRoutineToFolder(routine.id, target === 'unfoldered' ? undefined : target);
-    }
-    draggingRoutineRef.current = null;
-    hoveredTargetRef.current = null;
-    setDraggingRoutine(null);
-    setHoveredTarget(null);
-  }, [assignRoutineToFolder]);
-
-  // Global PanResponder on the ScrollView to track finger movement during drag
-  const scrollPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, _gs) => draggingRoutineRef.current !== null,
-      onPanResponderMove: (evt) => handleDragMove(evt.nativeEvent.pageY),
-      onPanResponderRelease: handleDragEnd,
-      onPanResponderTerminate: handleDragEnd,
-    })
-  ).current;
-
-  const registerDropZone = (key: string, pageY: number, height: number) => {
-    dropZoneLayouts.current[key] = { y: pageY, height };
-  };
 
   // ── Other handlers ────────────────────────────────────────────────────────────
   const handleRenameFolder = () => {
@@ -293,20 +231,9 @@ export const ExerciseListScreen = () => {
   const FolderSection = ({ folder }: { folder: RoutineFolder }) => {
     const items = routinesInFolder(folder.id);
     const isCollapsed = collapsedFolders.has(folder.id);
-    const isHovered =
-      hoveredTarget === folder.id &&
-      draggingRoutine !== null &&
-      draggingRoutine.folderId !== folder.id;
 
     return (
-      <View
-        style={[styles.folderSection, isHovered && styles.folderSectionHovered]}
-        onLayout={(e) => {
-          e.target.measure((_x, _y, _w, h, _px, py) => {
-            registerDropZone(folder.id, py, h);
-          });
-        }}
-      >
+      <View style={styles.folderSection}>
         <TouchableOpacity
           style={styles.folderHeader}
           onPress={() => toggleFolder(folder.id)}
@@ -341,14 +268,6 @@ export const ExerciseListScreen = () => {
           />
         </TouchableOpacity>
 
-        {/* Drop hint */}
-        {isHovered && (
-          <View style={styles.dropHint}>
-            <Ionicons name="arrow-down-circle-outline" size={14} color={theme.colors.accent} />
-            <Text style={styles.dropHintText}>Drop to move into "{folder.name}"</Text>
-          </View>
-        )}
-
         {!isCollapsed && (
           <View style={styles.folderRoutines}>
             {items.length === 0 ? (
@@ -366,12 +285,10 @@ export const ExerciseListScreen = () => {
             ) : (
               <>
                 {items.map((r) => (
-                  <DraggableRoutineCard
+                  <RoutineCard
                     key={r.id}
                     routine={r}
                     onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
-                    onDragStart={handleDragStart}
-                    isDragging={draggingRoutine?.id === r.id}
                   />
                 ))}
                 {/* ── Feature #1: shortcut to add another routine to this folder ── */}
@@ -391,10 +308,6 @@ export const ExerciseListScreen = () => {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const isUnfolderedHovered =
-    hoveredTarget === 'unfoldered' &&
-    draggingRoutine !== null &&
-    draggingRoutine.folderId !== undefined;
   const bottomPadding = insets.bottom + theme.spacing.xl + 72;
 
   return (
@@ -406,9 +319,6 @@ export const ExerciseListScreen = () => {
           { paddingBottom: bottomPadding },
         ]}
         scrollEventThrottle={16}
-        onScroll={(e) => { scrollOffsetY.current = e.nativeEvent.contentOffset.y; }}
-        // Attach global drag tracker only while a drag is active
-        {...(draggingRoutine ? scrollPanResponder.panHandlers : {})}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={styles.topSection}>
@@ -416,7 +326,7 @@ export const ExerciseListScreen = () => {
 
           <Button
             title="Start New Workout"
-            onPress={() => nav.navigate('LogWorkout', { exercisesToAdd: [] })}
+            onPress={handleStartNewWorkout}
             fullWidth
             style={styles.primaryButton}
           />
@@ -491,45 +401,21 @@ export const ExerciseListScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {routines.length > 0 && (
-              <Text style={styles.dragHintLabel}>
-                Hold ≡ on a routine to drag and reassign it to a different folder
-              </Text>
-            )}
-
             <View style={styles.routinesContainer}>
               {folders.map((folder) => (
                 <FolderSection key={folder.id} folder={folder} />
               ))}
 
-              {/* Un-foldered drop zone — always visible when drag is active or routines exist */}
-              {(unfolderedRoutines.length > 0 || (draggingRoutine && draggingRoutine.folderId)) && (
-                <View
-                  style={[
-                    styles.unfolderedGroup,
-                    isUnfolderedHovered && styles.unfolderedGroupHovered,
-                  ]}
-                  onLayout={(e) => {
-                    e.target.measure((_x, _y, _w, h, _px, py) => {
-                      registerDropZone('unfoldered', py, Math.max(h, 60));
-                    });
-                  }}
-                >
-                  {(folders.length > 0 || draggingRoutine) && (
-                    <View style={styles.unfolderedLabelRow}>
-                      <Text style={styles.unfolderedLabel}>NO FOLDER</Text>
-                      {isUnfolderedHovered && (
-                        <Text style={styles.dropHintInline}>← Drop here to remove from folder</Text>
-                      )}
-                    </View>
-                  )}
+              {unfolderedRoutines.length > 0 && (
+                <View style={styles.unfolderedGroup}>
+                  <View style={styles.unfolderedLabelRow}>
+                    <Text style={styles.unfolderedLabel}>NO FOLDER</Text>
+                  </View>
                   {unfolderedRoutines.map((r) => (
-                    <DraggableRoutineCard
+                    <RoutineCard
                       key={r.id}
                       routine={r}
                       onMenuPress={(rt) => setActiveModal({ type: 'routineMenu', routine: rt })}
-                      onDragStart={handleDragStart}
-                      isDragging={draggingRoutine?.id === r.id}
                     />
                   ))}
                 </View>
@@ -584,19 +470,6 @@ export const ExerciseListScreen = () => {
           ))}
         </View>
       </ScrollView>
-
-      {/* ── Floating drag ghost ──────────────────────────────────────────── */}
-      {draggingRoutine && (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.dragGhost, { transform: floatAnim.getTranslateTransform() }]}
-        >
-          <MaterialCommunityIcons name="dumbbell" size={14} color={theme.colors.accentText} />
-          <Text style={styles.dragGhostText} numberOfLines={1}>
-            {draggingRoutine.name}
-          </Text>
-        </Animated.View>
-      )}
 
       {/* ════════════════════════════════════════════════════════════════
           MODALS

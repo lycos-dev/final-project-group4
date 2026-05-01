@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,6 @@ import {
   Alert,
   ImageBackground,
   TouchableOpacity,
-  ScrollView,
-  Animated,
-  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,20 +19,28 @@ import { useExercises } from '../../context/ExerciseContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme, type Theme } from '../../theme/theme';
+import { type Theme } from '../../theme/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
 type R   = RouteProp<RootStackParamList, 'ExerciseDetail'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 // ─── Hero image ───────────────────────────────────────────────────────────────
-const ExerciseHeroImage = ({ uri, name, gradientColors }: { uri: string; name: string; gradientColors: readonly [string, string] }) => (
+const ExerciseHeroImage = ({
+  uri,
+  name,
+  heroStyles,
+  gradientColors,
+}: {
+  uri: string;
+  name: string;
+  heroStyles: ReturnType<typeof createHeroStyles>;
+  gradientColors: readonly [string, string];
+}) => (
   <View style={heroStyles.container}>
     <ImageBackground
       source={{ uri }}
       style={heroStyles.image}
-      imageStyle={{ borderRadius: theme.radius.lg }}
+      imageStyle={heroStyles.imageBorder}
       resizeMode="cover"
       accessibilityLabel={`Demonstration of ${name}`}
     >
@@ -46,7 +51,7 @@ const ExerciseHeroImage = ({ uri, name, gradientColors }: { uri: string; name: s
     </ImageBackground>
   </View>
 );
-const heroStyles = StyleSheet.create({
+const createHeroStyles = (theme: Theme) => StyleSheet.create({
   container: {
     marginBottom: theme.spacing.lg,
     borderRadius: theme.radius.lg,
@@ -58,6 +63,7 @@ const heroStyles = StyleSheet.create({
     elevation: 6,
   },
   image: { width: '100%', height: 220, justifyContent: 'flex-end' },
+  imageBorder: { borderRadius: theme.radius.lg },
   gradient: {
     height: 80,
     borderBottomLeftRadius: theme.radius.lg,
@@ -66,18 +72,23 @@ const heroStyles = StyleSheet.create({
 });
 
 // ─── Step row ─────────────────────────────────────────────────────────────────
-const StepRow = ({ index, text, appTheme }: { index: number; text: string; appTheme?: Theme }) => {
-  const themeToUse = appTheme || theme;
-  return (
-    <View style={stepStyles.row}>
-      <View style={[stepStyles.badge, { backgroundColor: themeToUse.colors.accent }]}>
-        <Text style={[stepStyles.badgeText, { color: themeToUse.colors.accentText }]}>{index + 1}</Text>
-      </View>
-      <Text style={[stepStyles.text, { color: themeToUse.colors.text }]}>{text}</Text>
+const StepRow = ({
+  index,
+  text,
+  stepStyles,
+}: {
+  index: number;
+  text: string;
+  stepStyles: ReturnType<typeof createStepStyles>;
+}) => (
+  <View style={stepStyles.row}>
+    <View style={stepStyles.badge}>
+      <Text style={stepStyles.badgeText}>{index + 1}</Text>
     </View>
-  );
-};
-const stepStyles = StyleSheet.create({
+    <Text style={stepStyles.text}>{text}</Text>
+  </View>
+);
+const createStepStyles = (theme: Theme) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -117,29 +128,32 @@ interface TabBarProps {
   onSelect: (t: TabName) => void;
   appTheme: Theme;
 }
-const TabBar = ({ activeTab, onSelect, appTheme }: TabBarProps) => (
-  <View style={[tabBarStyles.bar, { borderBottomColor: appTheme.colors.border }]}>
-    {TABS.map((tab) => {
-      const active = tab === activeTab;
-      return (
-        <TouchableOpacity
-          key={tab}
-          style={[tabBarStyles.tab, active && tabBarStyles.tabActive]}
-          onPress={() => onSelect(tab)}
-          activeOpacity={0.7}
-        >
-          <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive, 
-            { color: active ? appTheme.colors.accent : appTheme.colors.muted }
-          ]}>
-            {tab}
-          </Text>
-          {active && <View style={[tabBarStyles.underline, { backgroundColor: appTheme.colors.accent }]} />}
-        </TouchableOpacity>
-      );
-    })}
-  </View>
-);
-const tabBarStyles = StyleSheet.create({
+const TabBar = ({ activeTab, onSelect, appTheme }: TabBarProps) => {
+  const tabBarStyles = useMemo(() => createTabBarStyles(appTheme), [appTheme]);
+  return (
+    <View style={tabBarStyles.bar}>
+      {TABS.map((tab) => {
+        const active = tab === activeTab;
+        return (
+          <TouchableOpacity
+            key={tab}
+            style={[tabBarStyles.tab, active && tabBarStyles.tabActive]}
+            onPress={() => onSelect(tab)}
+            activeOpacity={0.7}
+          >
+            <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive, 
+              { color: active ? appTheme.colors.accent : appTheme.colors.muted }
+            ]}>
+              {tab}
+            </Text>
+            {active && <View style={[tabBarStyles.underline, { backgroundColor: appTheme.colors.accent }]} />}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+const createTabBarStyles = (theme: Theme) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -175,17 +189,26 @@ const tabBarStyles = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export const ExerciseDetailScreen = () => {
+  const { theme: appTheme, isDark } = useTheme();
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
-  const { theme: appTheme, isDark } = useTheme();
   const { getById, removeExercise } = useExercises();
   const { completedWorkouts } = useWorkout();
   const exercise = getById(params.exerciseId);
+  const styles = useMemo(() => createStyles(appTheme), [appTheme]);
+  const heroStyles = useMemo(() => createHeroStyles(appTheme), [appTheme]);
+  const stepStyles = useMemo(() => createStepStyles(appTheme), [appTheme]);
 
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
 
   useLayoutEffect(() => {
     nav.setOptions({
+      headerBackVisible: false,
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => nav.goBack()} style={styles.headerBackBtn} activeOpacity={0.75}>
+          <Text style={styles.headerBackText}>&lt; Go back</Text>
+        </TouchableOpacity>
+      ),
       headerRight: () =>
         exercise ? (
           <IconButton
@@ -194,7 +217,7 @@ export const ExerciseDetailScreen = () => {
           />
         ) : null,
     });
-  }, [nav, exercise]);
+  }, [nav, exercise, styles]);
 
   if (!exercise) {
     return (
@@ -232,7 +255,12 @@ export const ExerciseDetailScreen = () => {
     <Screen scroll>
       {/* ── Hero Image ───────────────────────────────────────────────── */}
       {exercise.imageUrl ? (
-        <ExerciseHeroImage uri={exercise.imageUrl} name={exercise.name} gradientColors={gradientColors} />
+        <ExerciseHeroImage
+          uri={exercise.imageUrl}
+          name={exercise.name}
+          heroStyles={heroStyles}
+          gradientColors={gradientColors}
+        />
       ) : (
         <View style={[styles.imageFallback, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface }]}>
           <Ionicons name="image-outline" size={40} color={appTheme.colors.border} />
@@ -289,14 +317,14 @@ export const ExerciseDetailScreen = () => {
             title="Edit Exercise"
             onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
             fullWidth
-            style={{ marginTop: theme.spacing.xl }}
+            style={{ marginTop: appTheme.spacing.xl }}
           />
           <Button
             title="Delete Exercise"
             variant="destructive"
             onPress={handleDelete}
             fullWidth
-            style={{ marginTop: theme.spacing.md }}
+            style={{ marginTop: appTheme.spacing.md }}
           />
         </View>
       )}
@@ -314,7 +342,7 @@ export const ExerciseDetailScreen = () => {
               <Button
                 title="Add Instructions"
                 onPress={() => nav.navigate('ExerciseForm', { exerciseId: exercise.id })}
-                style={{ marginTop: theme.spacing.lg }}
+                style={{ marginTop: appTheme.spacing.lg }}
               />
             </View>
           ) : (
@@ -325,7 +353,7 @@ export const ExerciseDetailScreen = () => {
               </View>
               <Card style={styles.stepsCard}>
                 {exercise.steps.map((step, i) => (
-                  <StepRow key={i} index={i} text={step} appTheme={appTheme} />
+                  <StepRow key={i} index={i} text={step} stepStyles={stepStyles} />
                 ))}
               </Card>
             </View>
@@ -400,7 +428,7 @@ export const ExerciseDetailScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   imageFallback: {
     height: 160,
     borderRadius: theme.radius.lg,
@@ -421,6 +449,15 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weightBlack,
     letterSpacing: -0.5,
     marginBottom: theme.spacing.sm,
+  },
+  headerBackBtn: {
+    paddingVertical: 6,
+    paddingRight: theme.spacing.sm,
+  },
+  headerBackText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
   },
   metaRow: {
     flexDirection: 'row',

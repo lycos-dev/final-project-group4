@@ -13,6 +13,7 @@ import {
   Alert,
   Switch,
   Vibration,
+  Keyboard,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -57,19 +58,19 @@ const REST_TIMER_OPTIONS = [
 const SET_TYPE_INFO: Record<SetType | "remove", { title: string; body: string }> = {
   normal: {
     title: "Normal Set",
-    body: "A standard working set. Counted as a regular numbered set in your workout volume.",
+    body: "Normal sets refer to working sets used for your main effort.",
   },
   warmup: {
     title: "Warm-Up Set",
-    body: 'A lighter prep set used to ready your muscles. Marked with a yellow "W" and not counted as a working set.',
+    body: 'Warm-up sets refer to lighter prep sets before working sets.',
   },
   failure: {
     title: "Failure Set",
-    body: 'A set taken to (or near) muscular failure. Marked with a red "F" so you can spot maximum-effort sets.',
+    body: "Failure sets refer to max-effort sets performed near muscular failure.",
   },
   remove: {
     title: "Remove Set",
-    body: "Deletes this set entirely from the exercise.",
+    body: "Remove set deletes this set from the exercise.",
   },
 };
 
@@ -87,15 +88,15 @@ const getSetTypeOptions = (theme: Theme): { key: SetType | "remove"; label: stri
  *   45      → "0m 45s"
  *   60      → "1m 0s"
  *   90      → "1m 30s"
- *   3600    → "1h 0m"
- *   3665    → "1h 1m"
+ *   3600    → "1h 0m 0s"
+ *   3665    → "1h 1m 5s"
  */
 const formatDuration = (seconds: number): string => {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
   return `${m}m ${sec}s`;
 };
 
@@ -156,6 +157,7 @@ const WheelPicker = ({
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         directionalLockEnabled
+        nestedScrollEnabled
         contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * WHEEL_PAD }}
         onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
         onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
@@ -251,11 +253,10 @@ const createPickStyles = (theme: Theme) =>
 /* ─── Main screen ──────────────────────────────────────────────────────────── */
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
-  const { theme: appTheme } = useTheme();
-  const theme = appTheme;
-  const styles = createStyles(appTheme);
-  const pickStyles = useMemo(() => createPickStyles(appTheme), [appTheme]);
-  const setTypeOptions = useMemo(() => getSetTypeOptions(appTheme), [appTheme]);
+  const { theme, isDark } = useTheme();
+  const styles = createStyles(theme);
+  const pickStyles = useMemo(() => createPickStyles(theme), [theme]);
+  const setTypeOptions = useMemo(() => getSetTypeOptions(theme), [theme]);
 
   const {
     exercises,
@@ -296,26 +297,63 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   const [activeRestTimer,    setActiveRestTimer]    = useState<ActiveRestTimer | null>(null);
   const [restTimerPaused,    setRestTimerPaused]    = useState(false);
   const [showExerciseMenu,   setShowExerciseMenu]   = useState<string | null>(null);
+  const [reorderOpen,        setReorderOpen]        = useState(false);
+  const [reorderTargetId,    setReorderTargetId]    = useState<string | null>(null);
 
   // Duration edit modal
   const [durationOpen,  setDurationOpen]  = useState(false);
-  // Use refs for the wheel values so saveDurationModal always reads the
-  // latest committed value regardless of React batching / stale closures.
-  const draftHoursRef   = useRef(0);
-  const draftMinsRef    = useRef(0);
-  const [draftHours,    setDraftHours]    = useState(0);
-  const [draftMinutes,  setDraftMinutes]  = useState(0);
   const [draftStart,    setDraftStart]    = useState<Date>(new Date());
   const [showDate,      setShowDate]      = useState(false);
   const [showTime,      setShowTime]      = useState(false);
+  const [inputH, setInputH] = useState('0');
+  const [inputM, setInputM] = useState('0');
+  const [inputS, setInputS] = useState('0');
 
   // Set-type modal
   const [setTypeTarget, setSetTypeTarget] = useState<{ exerciseId: string; setId: string } | null>(null);
-  const [setTypeInfo,   setSetTypeInfo]   = useState<SetType | "remove" | null>(null);
 
   // Settings modal
   const [settingsOpen,   setSettingsOpen]   = useState(false);
   const [restPickerOpen, setRestPickerOpen] = useState(false);
+
+  // Sync duration inputs when modal opens
+  useEffect(() => {
+    if (durationOpen) {
+      const s = getElapsedSeconds();
+      setInputH(String(Math.floor(s / 3600)));
+      setInputM(String(Math.floor((s % 3600) / 60)));
+      setInputS(String(s % 60));
+    }
+  }, [durationOpen]);
+
+  const applyTypedDuration = () => {
+    const h = Math.max(0, parseInt(inputH, 10) || 0);
+    const m = Math.max(0, Math.min(59, parseInt(inputM, 10) || 0));
+    const s = Math.max(0, Math.min(59, parseInt(inputS, 10) || 0));
+    const total = h * 3600 + m * 60 + s;
+    setElapsedSeconds(total);
+    setDraftStart(new Date(Date.now() - total * 1000));
+  };
+
+  const handleHourChange = (text: string) => {
+    setInputH(text.replace(/[^0-9]/g, ''));
+  };
+
+  const handleMinuteChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    const num = parseInt(cleaned, 10);
+    if (cleaned === '' || isNaN(num) || num <= 59) {
+      setInputM(cleaned);
+    }
+  };
+
+  const handleSecondChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    const num = parseInt(cleaned, 10);
+    if (cleaned === '' || isNaN(num) || num <= 59) {
+      setInputS(cleaned);
+    }
+  };
 
   // ── Tick every second ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -363,6 +401,22 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
           ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
           : ex,
       ),
+    );
+  };
+
+  const areAllSetsCompleted = (exercise: LogExercise) =>
+    exercise.sets.length > 0 && exercise.sets.every((set) => set.completed);
+
+  const toggleExerciseCompletion = (exerciseId: string) => {
+    setExercises((prev: LogExercise[]) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const shouldCompleteAll = !areAllSetsCompleted(exercise);
+        return {
+          ...exercise,
+          sets: exercise.sets.map((set) => ({ ...set, completed: shouldCompleteAll })),
+        };
+      }),
     );
   };
 
@@ -415,6 +469,28 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     );
   };
 
+  const moveExercise = (exerciseId: string, direction: "up" | "down") => {
+    setExercises((prev: LogExercise[]) => {
+      const index = prev.findIndex((exercise) => exercise.id === exerciseId);
+      if (index < 0) return prev;
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(index, 1);
+      next.splice(target, 0, picked);
+      return next;
+    });
+  };
+
+  const handleReorderExercise = (exerciseId: string) => {
+    setReorderTargetId(exerciseId);
+    setReorderOpen(true);
+  };
+
+  const handleReplaceExercise = (exerciseId: string) => {
+    navigation.navigate("AddExercise", { replaceExerciseId: exerciseId });
+  };
+
   const setSetType = (exerciseId: string, setId: string, type: SetType | "remove") => {
     if (type === "remove") {
       setExercises((prev: LogExercise[]) =>
@@ -431,6 +507,10 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         ),
       );
     }
+    setSetTypeTarget(null);
+  };
+
+  const closeSetTypeModal = () => {
     setSetTypeTarget(null);
   };
 
@@ -560,22 +640,11 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // ── Duration modal helpers ────────────────────────────────────────────────
   const openDurationModal = () => {
-    const total = Math.max(0, elapsed);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    draftHoursRef.current = h;
-    draftMinsRef.current  = m;
-    setDraftHours(h);
-    setDraftMinutes(m);
     setDraftStart(startTime ? new Date(startTime) : new Date());
     setDurationOpen(true);
   };
 
   const saveDurationModal = () => {
-    // Read from refs - guaranteed to have the latest scrolled value
-    // even if React state hasn't flushed yet
-    const totalSec = draftHoursRef.current * 3600 + draftMinsRef.current * 60;
-    setElapsedSeconds(totalSec);
     setDurationOpen(false);
   };
 
@@ -694,7 +763,14 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                       {settings.weightUnit.toUpperCase()}
                     </Text>
                     <Text style={[styles.setGridCell, styles.setLabel]}>REPS</Text>
-                    <View style={styles.setCheckbox} />
+                    <TouchableOpacity
+                      style={[styles.setCheckbox, areAllSetsCompleted(exercise) && styles.setCheckboxChecked]}
+                      onPress={() => toggleExerciseCompletion(exercise.id)}
+                    >
+                      {areAllSetsCompleted(exercise) && (
+                        <Ionicons name="checkmark" size={16} color={theme.colors.accentText} />
+                      )}
+                    </TouchableOpacity>
                   </View>
 
                   {exercise.sets.map((set, index) => {
@@ -844,11 +920,25 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <Ionicons name="information-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>View Exercise Details</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => setShowExerciseMenu(null)}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const exId = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (exId) handleReorderExercise(exId);
+              }}
+            >
               <Ionicons name="swap-vertical" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Reorder Exercises</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => setShowExerciseMenu(null)}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const exId = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (exId) handleReplaceExercise(exId);
+              }}
+            >
               <MaterialCommunityIcons name="sync" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Replace Exercise</Text>
             </TouchableOpacity>
@@ -922,64 +1012,122 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         visible={durationOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setDurationOpen(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setDurationOpen(false); }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
-          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.modalOverlay} onPress={() => { Keyboard.dismiss(); setDurationOpen(false); }}>
+          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
+            <View style={{ paddingBottom: theme.spacing.sm }}>
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
             <View style={styles.durationValuePill}>
               <Text style={styles.durationValueText}>
-                {String(draftHours).padStart(2, "0")}h {String(draftMinutes).padStart(2, "0")}m
+                {formatDuration(elapsed)}
               </Text>
             </View>
-            <View style={styles.wheelCard}>
-              <View style={styles.wheelRow}>
-                <WheelPicker
-                  value={draftHours}
-                  onChange={(value) => {
-                    draftHoursRef.current = value;
-                    setDraftHours(value);
-                  }}
-                  count={24}
-                  suffix="hr"
-                  pickStyles={pickStyles}
-                />
-                <WheelPicker
-                  value={draftMinutes}
-                  onChange={(value) => {
-                    draftMinsRef.current = value;
-                    setDraftMinutes(value);
-                  }}
-                  count={60}
-                  suffix="min"
-                  pickStyles={pickStyles}
-                />
+
+            {/* Live elapsed time display - keeps updating */}
+            <View style={styles.liveTimeContainer}>
+              <Text style={styles.liveTimeLabel}>LIVE TIMER</Text>
+              <View style={styles.liveTimeDisplay}>
+                {(() => {
+                  const h = Math.floor(elapsed / 3600);
+                  const m = Math.floor((elapsed % 3600) / 60);
+                  const s = elapsed % 60;
+                  return (
+                    <>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(h).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>h</Text>
+                      </View>
+                      <Text style={styles.timeSeparator}>:</Text>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(m).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>m</Text>
+                      </View>
+                      <Text style={styles.timeSeparator}>:</Text>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(s).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>s</Text>
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
             </View>
 
-            <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
-            <View style={styles.startRow}>
-              <TouchableOpacity
-                style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowDate(true), 300); }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
-                <Text style={styles.startBtnText}>{draftStart.toDateString()}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowTime(true), 300); }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
-                <Text style={styles.startBtnText}>
-                  {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </Text>
+            {/* Duration input fields */}
+            <View style={styles.adjustSection}>
+              <Text style={styles.liveTimeLabel}>SET DURATION</Text>
+              <View style={styles.inputRow}>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputH}
+                    onChangeText={handleHourChange}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>h</Text>
+                </View>
+                <Text style={styles.timeSeparator}>:</Text>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputM}
+                    onChangeText={handleMinuteChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>m</Text>
+                </View>
+                <Text style={styles.timeSeparator}>:</Text>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputS}
+                    onChangeText={handleSecondChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>s</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.applyBtn} onPress={applyTypedDuration} activeOpacity={0.7}>
+                <Text style={styles.applyBtnText}>Apply</Text>
               </TouchableOpacity>
             </View>
+
+             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
+             <View style={styles.startRow}>
+               <TouchableOpacity
+                 style={styles.startBtn}
+                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowDate(true); }}
+                 activeOpacity={0.7}
+               >
+                 <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
+                 <Text style={styles.startBtnText}>
+                   {draftStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                 </Text>
+               </TouchableOpacity>
+               <Text style={styles.startSeparator}>,</Text>
+               <TouchableOpacity
+                 style={styles.startBtn}
+                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowTime(true); }}
+                 activeOpacity={0.7}
+               >
+                 <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
+                 <Text style={styles.startBtnText}>
+                   {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                 </Text>
+               </TouchableOpacity>
+             </View>
 
             <TouchableOpacity
               style={[styles.pauseBtn, isPaused && styles.pauseBtnActive]}
@@ -996,107 +1144,94 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               </Text>
             </TouchableOpacity>
 
-            <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
-              <Button title="Cancel" variant="ghost" onPress={() => setDurationOpen(false)} style={{ flex: 1 }} />
-              <Button title="Save"   onPress={saveDurationModal} style={{ flex: 1 }} />
+            <TouchableOpacity
+              style={[styles.closeBtn]}
+              onPress={() => setDurationOpen(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.closeBtnText}>Done</Text>
+            </TouchableOpacity>
             </View>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* Date picker - closes duration modal first, re-opens it when done */}
-      <Modal
-        visible={showDate}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}
-      >
-        <Pressable
-          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
-          onPress={() => { setShowDate(false); setDurationOpen(true); }}
-        >
-          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Select Date</Text>
-            <DateTimePicker
-              value={draftStart}
-              mode="date"
-              maximumDate={new Date()}
-              display={Platform.OS === "ios" ? "inline" : "default"}
-              onChange={(_e, d) => {
-                if (d) {
-                  const next = new Date(draftStart);
-                  next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                  if (next.getTime() > Date.now()) next.setTime(Date.now());
-                  setDraftStart(next);
-                }
-                if (Platform.OS !== "ios") {
-                  setShowDate(false);
-                  setTimeout(() => setDurationOpen(true), 200);
-                }
-              }}
-            />
-            {Platform.OS === "ios" && (
-              <Button
-                title="Done"
-                onPress={() => { setShowDate(false); setDurationOpen(true); }}
-                fullWidth
-                style={{ marginTop: theme.spacing.md }}
-              />
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
-      {/* Time picker - closes duration modal first, re-opens it when done */}
-      <Modal
-        visible={showTime}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}
-      >
-        <Pressable
-          style={[styles.modalOverlay, { justifyContent: "flex-end" }]}
-          onPress={() => { setShowTime(false); setDurationOpen(true); }}
-        >
-          <Pressable style={[styles.modalContent, { paddingBottom: 32 }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Select Time</Text>
-            <DateTimePicker
-              value={draftStart}
-              mode="time"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(_e, d) => {
-                if (d) {
-                  const next = new Date(draftStart);
-                  next.setHours(d.getHours(), d.getMinutes());
-                  if (next.getTime() > Date.now()) next.setTime(Date.now());
-                  setDraftStart(next);
-                }
-                if (Platform.OS !== "ios") {
-                  setShowTime(false);
-                  setTimeout(() => setDurationOpen(true), 200);
-                }
-              }}
-            />
-            {Platform.OS === "ios" && (
-              <Button
-                title="Done"
-                onPress={() => { setShowTime(false); setDurationOpen(true); }}
-                fullWidth
-                style={{ marginTop: theme.spacing.md }}
+      {/* Date picker modal with backdrop so user can dismiss it */}
+      {showDate && (
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+            <View style={[styles.modalContent, styles.pickerModalContent]}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>Select Date</Text>
+                <TouchableOpacity onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+                  <Text style={styles.pickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftStart}
+                mode="date"
+                maximumDate={new Date()}
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_e, d) => {
+                  if (d) {
+                    const next = new Date(draftStart);
+                    next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                    if (next.getTime() > Date.now()) {
+                      Alert.alert('Invalid Date', 'You cannot select a future date.');
+                      return;
+                    }
+                    setDraftStart(next);
+                  }
+                }}
               />
-            )}
+            </View>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
+      )}
+
+      {/* Time picker modal with backdrop so user can dismiss it */}
+      {showTime && (
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+            <View style={[styles.modalContent, styles.pickerModalContent]}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>Select Time</Text>
+                <TouchableOpacity onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+                  <Text style={styles.pickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftStart}
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_e, d) => {
+                  if (d) {
+                    const next = new Date(draftStart);
+                    next.setHours(d.getHours(), d.getMinutes());
+                    if (next.getTime() > Date.now()) {
+                      Alert.alert('Invalid Time', 'You cannot select a future time.');
+                      return;
+                    }
+                    setDraftStart(next);
+                  }
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
+      )}
 
       {/* ── Set-type picker ─────────────────────────────────────────────────── */}
       <Modal
         visible={setTypeTarget !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setSetTypeTarget(null)}
+        onRequestClose={closeSetTypeModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSetTypeTarget(null)}>
+        <Pressable style={styles.modalOverlay} onPress={closeSetTypeModal}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Select Set Type</Text>
             {setTypeOptions.map((opt) => (
@@ -1111,7 +1246,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.helpBtn}
-                  onPress={() => setSetTypeInfo(opt.key)}
+                  onPress={() => Alert.alert(SET_TYPE_INFO[opt.key].title, SET_TYPE_INFO[opt.key].body)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons name="help-circle-outline" size={20} color={theme.colors.muted} />
@@ -1121,7 +1256,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             <Button
               title="Cancel"
               variant="ghost"
-              onPress={() => setSetTypeTarget(null)}
+              onPress={closeSetTypeModal}
               fullWidth
               style={{ marginTop: theme.spacing.sm }}
             />
@@ -1129,27 +1264,59 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </Pressable>
       </Modal>
 
-      {/* ── Set-type info ───────────────────────────────────────────────────── */}
       <Modal
-        visible={setTypeInfo !== null}
+        visible={reorderOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setSetTypeInfo(null)}
+        onRequestClose={() => setReorderOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSetTypeInfo(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setReorderOpen(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            {setTypeInfo && (
-              <>
-                <Text style={styles.modalTitle}>{SET_TYPE_INFO[setTypeInfo].title}</Text>
-                <Text style={styles.modalBody}>{SET_TYPE_INFO[setTypeInfo].body}</Text>
-                <Button
-                  title="Got it"
-                  onPress={() => setSetTypeInfo(null)}
-                  fullWidth
-                  style={{ marginTop: theme.spacing.md }}
-                />
-              </>
-            )}
+            <Text style={styles.modalTitle}>Reorder Exercises</Text>
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {exercises.map((exercise, index) => {
+                const selected = reorderTargetId === exercise.id;
+                return (
+                  <TouchableOpacity
+                    key={exercise.id}
+                    style={[styles.reorderRow, selected && styles.reorderRowSelected]}
+                    onPress={() => setReorderTargetId(exercise.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.reorderName, selected && { color: theme.colors.accent }]}>
+                      {exercise.name}
+                    </Text>
+                    {selected && (
+                      <View style={styles.reorderButtons}>
+                        <TouchableOpacity
+                          style={[styles.reorderBtn, index === 0 && styles.reorderBtnDisabled]}
+                          onPress={() => moveExercise(exercise.id, "up")}
+                          disabled={index === 0}
+                        >
+                          <Ionicons name="arrow-up" size={16} color={theme.colors.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderBtn,
+                            index === exercises.length - 1 && styles.reorderBtnDisabled,
+                          ]}
+                          onPress={() => moveExercise(exercise.id, "down")}
+                          disabled={index === exercises.length - 1}
+                        >
+                          <Ionicons name="arrow-down" size={16} color={theme.colors.text} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <Button
+              title="Done"
+              onPress={() => setReorderOpen(false)}
+              fullWidth
+              style={{ marginTop: theme.spacing.md }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1223,6 +1390,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.autoStartRestTimer ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1240,6 +1408,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.countWarmupInVolume ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1257,23 +1426,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.vibrateOnSetComplete ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
-                  />
-                </View>
-              </View>
-
-              {/* Show finish summary */}
-              <View style={styles.settingRow}>
-                <View style={styles.settingMain}>
-                  <Text style={styles.settingTitle}>Show finish summary</Text>
-                  <Text style={styles.settingHint}>Confirm dialog with stats when finishing</Text>
-                </View>
-                <View style={styles.settingSwitchWrap}>
-                  <Switch
-                    value={settings.showFinishSummary}
-                    onValueChange={(v) => updateSettings({ showFinishSummary: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.showFinishSummary ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1291,6 +1444,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                     thumbColor={Platform.OS === "android" ? (settings.confirmBeforeDiscard ? theme.colors.accent : theme.colors.muted) : undefined}
                     ios_backgroundColor={theme.colors.border}
+                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1737,6 +1891,97 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeSm,
     letterSpacing: 0.4,
   },
+  liveTimeContainer: {
+    alignItems: "center",
+    marginVertical: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  liveTimeLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 1.2,
+    marginBottom: theme.spacing.sm,
+  },
+  liveTimeDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  timeBlock: {
+    alignItems: "center",
+  },
+  timeValue: {
+    color: theme.colors.accent,
+    fontSize: 32,
+    fontWeight: theme.font.weightBold,
+    fontVariant: ["tabular-nums"],
+  },
+  timeUnit: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  timeSeparator: {
+    color: theme.colors.accent,
+    fontSize: 28,
+    fontWeight: theme.font.weightBold,
+    marginHorizontal: 4,
+  },
+  adjustSection: {
+    marginTop: theme.spacing.md,
+    alignItems: "center",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  durationInputWrap: {
+    alignItems: "center",
+  },
+  durationInput: {
+    width: 60,
+    height: 44,
+    textAlign: "center",
+    color: theme.colors.accent,
+    fontSize: 20,
+    fontWeight: theme.font.weightBold,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  inputUnit: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  applyBtn: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.sm,
+    minWidth: 100,
+    alignItems: "center",
+  },
+  applyBtnText: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
   fieldLabel: {
     color: theme.colors.muted,
     fontSize: 11,
@@ -1753,7 +1998,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   wheelRow: { flexDirection: "row", gap: theme.spacing.md, justifyContent: "center" },
-  startRow: { flexDirection: "row", gap: theme.spacing.sm },
+  startRow: { flexDirection: "row", gap: theme.spacing.sm, alignItems: "center" },
+  startSeparator: { color: theme.colors.muted, fontSize: theme.font.sizeMd, fontWeight: theme.font.weightBold },
   startBtn: {
     flex: 1,
     flexDirection: "row",
@@ -1789,6 +2035,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeSm,
     fontWeight: theme.font.weightBold,
   },
+  closeBtn: {
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: "center",
+    marginTop: theme.spacing.md,
+  },
+  closeBtnText: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
 
   /* Set-type modal */
   setTypeRow: {
@@ -1809,6 +2067,62 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   helpBtn: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
+  },
+  reorderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+  },
+  reorderRowSelected: {
+    backgroundColor: "rgba(198, 255, 61, 0.08)",
+  },
+  reorderName: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  reorderButtons: {
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+  },
+  reorderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  reorderBtnDisabled: {
+    opacity: 0.35,
+  },
+  pickerModalContent: {
+    padding: theme.spacing.md,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: theme.spacing.sm,
+  },
+  pickerTitle: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
+  pickerDoneText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
   },
 
   /* Settings modal */
@@ -1840,8 +2154,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   segmentTextActive:  { color: theme.colors.accentText },
   settingRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
@@ -1853,11 +2166,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingRight: theme.spacing.sm,
   },
   settingSwitchWrap: {
-    marginLeft: theme.spacing.sm,
+    marginLeft: "auto",
     flexShrink: 0,
     alignSelf: "center",
-    minWidth: 56,
+    minWidth: 68,
     alignItems: "flex-end",
+  },
+  iosSwitch: {
+    transform: [{ scaleX: 0.92 }, { scaleY: 0.92 }],
   },
   settingTitle: {
     color: theme.colors.text,
