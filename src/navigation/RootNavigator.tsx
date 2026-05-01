@@ -101,11 +101,15 @@ export default function RootNavigator() {
           <Stack.Screen name="LogWorkout"      component={LogWorkoutScreen}             options={{ headerShown: false }} />
           <Stack.Screen name="SaveWorkout"     component={SaveWorkoutScreen}            options={{ headerShown: false }} />
           <Stack.Screen name="AddExercise"     component={AddExerciseScreen}            options={{ headerShown: false }} />
-          <Stack.Screen name="CreateRoutine"   component={CreateRoutineScreen}          options={{ presentation: 'modal' }} />
+          <Stack.Screen
+            name="CreateRoutine"
+            component={CreateRoutineScreen}
+            options={{ presentation: 'modal', headerShown: false }}
+          />
           <Stack.Screen
             name="SelectExerciseForRoutine"
             component={SelectExerciseForRoutineScreen}
-            options={{ title: 'Select Exercise' }}
+            options={{ headerShown: false }}
           />
         </>
       )}
