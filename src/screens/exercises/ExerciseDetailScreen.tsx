@@ -62,7 +62,7 @@ const createHeroStyles = (theme: Theme) => StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  image: { width: '100%', height: 220, justifyContent: 'flex-end' },
+  image: { width: '100%', height: 350, justifyContent: 'flex-end' },
   imageBorder: { borderRadius: theme.radius.lg },
   gradient: {
     height: 80,

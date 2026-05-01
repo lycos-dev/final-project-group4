@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Routine, RoutineExercise, RoutineFolder } from '../types';
+import { useAuth } from './AuthContext';
 
 interface RoutineContextType {
   routines: Routine[];
@@ -23,19 +24,36 @@ const RoutineContext = createContext<RoutineContextType | undefined>(undefined);
 const STORAGE_KEY = '@nexa/routines';
 const FOLDERS_STORAGE_KEY = '@nexa/routine_folders';
 
+const getUserKey = (email: string | undefined, key: string) => {
+  if (!email) return key;
+  return `${key}_${email.toLowerCase()}`;
+};
+
 export const RoutineProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const userEmail = user?.email;
+  const getKey = (key: string) => getUserKey(userEmail, key);
+  
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [currentRoutine, setCurrentRoutine] = useState<Routine | null>(null);
   const [folders, setFolders] = useState<RoutineFolder[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // Load routines from storage on mount
+  // Clear state when user changes
+  useEffect(() => {
+    setRoutines([]);
+    setCurrentRoutine(null);
+    setFolders([]);
+    setLoaded(false);
+  }, [userEmail]);
+
+  // Load routines from storage on mount - depends on userEmail
   useEffect(() => {
     const loadRoutines = async () => {
       try {
         const [routinesJson, foldersJson] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEY),
-          AsyncStorage.getItem(FOLDERS_STORAGE_KEY),
+          AsyncStorage.getItem(getKey(STORAGE_KEY)),
+          AsyncStorage.getItem(getKey(FOLDERS_STORAGE_KEY)),
         ]);
         if (routinesJson) {
           setRoutines(JSON.parse(routinesJson));
@@ -50,23 +68,23 @@ export const RoutineProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     loadRoutines();
-  }, []);
+  }, [userEmail]);
 
   // Save routines to storage whenever they change
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines)).catch((e) =>
+    AsyncStorage.setItem(getKey(STORAGE_KEY), JSON.stringify(routines)).catch((e) =>
       console.error('Failed to save routines', e),
     );
-  }, [routines, loaded]);
+  }, [routines, loaded, userEmail]);
 
   // Save folders to storage whenever they change
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders)).catch((e) =>
+    AsyncStorage.setItem(getKey(FOLDERS_STORAGE_KEY), JSON.stringify(folders)).catch((e) =>
       console.error('Failed to save routine folders', e),
     );
-  }, [folders, loaded]);
+  }, [folders, loaded, userEmail]);
 
   const addRoutine = (routine: Routine) => {
     setRoutines((prev) => [...prev, routine]);
