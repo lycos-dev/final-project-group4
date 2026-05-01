@@ -7,7 +7,7 @@ export const MOCK_EXERCISES: Exercise[] = [
     muscleGroup: 'Chest',
     equipment: 'Barbell',
     // TODO: Insert real photo/GIF link here
-    imageUrl: 'https://via.placeholder.com/400x300/16161D/C6FF3D?text=Bench+Press',
+    imageUrl: '',
     steps: [
       'Lie flat, grip bar just outside shoulder width.',
       'Unrack and lower the bar to mid-chest, elbows ~45°.',
@@ -22,7 +22,7 @@ export const MOCK_EXERCISES: Exercise[] = [
     muscleGroup: 'Back',
     equipment: 'Bodyweight',
     // TODO: Insert real photo/GIF link here
-    imageUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Pull-up.gif',
+    imageUrl: '',
     steps: [
       'Hang with arms fully extended, overhand grip.',
       'Depress your shoulder blades, then pull chest toward the bar.',
@@ -37,7 +37,7 @@ export const MOCK_EXERCISES: Exercise[] = [
     muscleGroup: 'Legs',
     equipment: 'Barbell',
     // TODO: Insert real photo/GIF link here
-    imageUrl: 'https://via.placeholder.com/400x300/16161D/C6FF3D?text=Squat',
+    imageUrl: '',
     steps: [
       'Bar on traps, feet shoulder-width apart, toes slightly out.',
       'Brace core, take a big breath, break at hips and knees together.',
@@ -53,7 +53,7 @@ export const MOCK_EXERCISES: Exercise[] = [
     muscleGroup: 'Shoulders',
     equipment: 'Barbell',
     // TODO: Insert real photo/GIF link here
-    imageUrl: 'https://via.placeholder.com/400x300/16161D/C6FF3D?text=OHP',
+    imageUrl: '',
     steps: [
       'Hold bar at collarbone, grip just outside shoulders.',
       'Brace abs and glutes, press bar straight overhead.',

@@ -170,16 +170,17 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
            style={styles.filterButton}
            onPress={() => setShowEquipmentModal(true)}
          >
-           <Text style={styles.filterButtonText}>{selectedEquipment === 'All Equipment' ? 'Choose Equipment' : selectedEquipment}</Text>
+           <Text style={styles.filterButtonText}>{selectedEquipment === 'Choose Equipment' ? 'Choose Equipment' : selectedEquipment}</Text>
            <Ionicons name="chevron-down" size={16} color={theme.colors.muted} />
          </TouchableOpacity>
 
-        {selectedMuscle !== 'All Muscles' || selectedEquipment !== 'All Equipment' ? (
+        {selectedMuscle !== 'All Muscles' || selectedEquipment !== 'Choose Equipment' || search ? (
           <TouchableOpacity
             style={styles.clearButton}
             onPress={() => {
               setSelectedMuscle('All Muscles');
-              setSelectedEquipment('All Equipment');
+              setSelectedEquipment('Choose Equipment');
+              setSearch('');
             }}
           >
             <Ionicons name="close-circle" size={20} color={theme.colors.muted} />

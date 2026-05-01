@@ -819,11 +819,11 @@ export const ExerciseListScreen = () => {
                   if (activeModal?.type === 'startRoutine') {
                     closeModal();
                     
-                    // Validation: Check if there's an active workout with exercises
-                    if (isActive && exercises.length > 0) {
+                    // Validation: Check if there's an active workout (even if empty)
+                    if (isActive) {
                       Alert.alert(
                         'Workout in progress',
-                        'You already have an active workout with exercises. What would you like to do?',
+                        'You already have an active workout. What would you like to do?',
                         [
                           {
                             text: 'Continue Current Workout',
@@ -855,12 +855,7 @@ export const ExerciseListScreen = () => {
                       return;
                     }
                     
-                    // If active but no exercises, or no active workout, proceed with starting routine
-                    if (isActive && exercises.length === 0) {
-                      // Clear the empty workout and start routine
-                      clearWorkout();
-                    }
-                    
+                    // No active workout, proceed with starting routine
                     const exercisesToAdd = activeModal.routine.exercises.map((ex) => ({
                       ...ex,
                       routineSets: ex.routineSets || [],

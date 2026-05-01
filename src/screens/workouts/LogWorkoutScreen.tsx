@@ -11,10 +11,10 @@ import {
   Pressable,
   Platform,
   Alert,
-  Switch,
   Vibration,
   Keyboard,
 } from "react-native";
+import { CustomToggle } from '../../components/ui/CustomToggle';
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -1612,13 +1612,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   <Text style={styles.settingHint}>Begin countdown when a set is completed</Text>
                 </View>
                 <View style={styles.settingSwitchWrap}>
-                  <Switch
+                  <CustomToggle
                     value={settings.autoStartRestTimer}
                     onValueChange={(v) => updateSettings({ autoStartRestTimer: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.autoStartRestTimer ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
-                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1630,13 +1626,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   <Text style={styles.settingHint}>Include W sets in total volume</Text>
                 </View>
                 <View style={styles.settingSwitchWrap}>
-                  <Switch
+                  <CustomToggle
                     value={settings.countWarmupInVolume}
                     onValueChange={(v) => updateSettings({ countWarmupInVolume: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.countWarmupInVolume ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
-                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1648,13 +1640,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   <Text style={styles.settingHint}>Short haptic when you tick a set</Text>
                 </View>
                 <View style={styles.settingSwitchWrap}>
-                  <Switch
+                  <CustomToggle
                     value={settings.vibrateOnSetComplete}
                     onValueChange={(v) => updateSettings({ vibrateOnSetComplete: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.vibrateOnSetComplete ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
-                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -1666,13 +1654,9 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   <Text style={styles.settingHint}>Ask before clearing the workout</Text>
                 </View>
                 <View style={styles.settingSwitchWrap}>
-                  <Switch
+                  <CustomToggle
                     value={settings.confirmBeforeDiscard}
                     onValueChange={(v) => updateSettings({ confirmBeforeDiscard: v })}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
-                    thumbColor={Platform.OS === "android" ? (settings.confirmBeforeDiscard ? theme.colors.accent : theme.colors.muted) : undefined}
-                    ios_backgroundColor={theme.colors.border}
-                    style={Platform.OS === "ios" ? styles.iosSwitch : undefined}
                   />
                 </View>
               </View>
@@ -2404,11 +2388,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginLeft: "auto",
     flexShrink: 0,
     alignSelf: "center",
-    minWidth: 68,
-    alignItems: "flex-end",
-  },
-  iosSwitch: {
-    transform: [{ scaleX: 0.92 }, { scaleY: 0.92 }],
+    minWidth: 52,
+    alignItems: "center",
   },
   settingTitle: {
     color: theme.colors.text,

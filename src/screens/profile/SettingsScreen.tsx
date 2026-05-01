@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
+import { CustomToggle } from '../../components/ui/CustomToggle';
 import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -46,11 +47,9 @@ export const SettingsScreen = () => {
             <Text style={styles.label}>Units</Text>
             <Text style={styles.sub}>{settings.units === 'metric' ? 'Metric (kg, cm)' : 'Imperial (lb, in)'}</Text>
           </View>
-          <Switch
+          <CustomToggle
             value={settings.units === 'imperial'}
             onValueChange={handleUnitChange}
-            trackColor={{ false: appTheme.colors.border, true: appTheme.colors.accent }}
-            thumbColor="#fff"
           />
         </View>
       </Card>
@@ -61,11 +60,9 @@ export const SettingsScreen = () => {
             <Text style={styles.label}>Notifications</Text>
             <Text style={styles.sub}>Workout reminders & tips</Text>
           </View>
-          <Switch
+          <CustomToggle
             value={settings.notifications}
             onValueChange={(v) => updateSettings({ notifications: v })}
-            trackColor={{ false: appTheme.colors.border, true: appTheme.colors.accent }}
-            thumbColor="#fff"
           />
         </View>
       </Card>
