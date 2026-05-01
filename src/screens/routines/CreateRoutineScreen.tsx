@@ -407,6 +407,11 @@ const createStyles = (theme: any) =>
       fontWeight: theme.font.weightMedium,
       color: theme.colors.text,
     },
+    flexCentered: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      flex: 1,
+    },
   });
 
 export const CreateRoutineScreen = ({ navigation, route }: Props) => {
