@@ -47,7 +47,7 @@ export const ThemeToggle = ({ value, onValueChange }: Props) => {
         style={[
           styles.thumb,
           {
-            backgroundColor: value ? '#8FB7FF' : '#2E9E58',
+            backgroundColor: value ? theme.colors.accent : '#2E9E58',
             transform: [{ translateX: knobTranslateX }],
           },
         ]}

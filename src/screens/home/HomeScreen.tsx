@@ -4,9 +4,9 @@ import { Screen } from '../../components/ui/Screen';
 import { StreakCounter } from '../../components/ui/StreakCounter';
 import { WorkoutCompletionCard } from '../../components/ui/WorkoutCompletionCard';
 import { useTheme } from '../../context/ThemeContext';
-import { theme } from '../../theme/theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useWorkout } from '../../context/WorkoutContext';
+import { Theme } from '../../theme/theme';
 
   const formatTimestamp = (completedAt: number): string => {
   const now = Date.now();
@@ -23,7 +23,7 @@ import { useWorkout } from '../../context/WorkoutContext';
 
 export const HomeScreen = () => {
   const { theme: appTheme } = useTheme();
-  const styles = createStyles(appTheme);
+  const styles = useMemo(() => createStyles(appTheme), [appTheme]);
   const { profile } = useProfile();
   const { completedWorkouts } = useWorkout();
   const recentWorkouts = useMemo(
@@ -79,26 +79,24 @@ export const HomeScreen = () => {
   );
 };
 
-const createStyles = (appTheme: typeof theme) => {
-  const theme = appTheme;
-  return StyleSheet.create({
-    greet: { color: theme.colors.muted, fontSize: theme.font.sizeMd },
-    name: { color: theme.colors.text, fontSize: theme.font.sizeDisplay, fontWeight: theme.font.weightBlack, marginBottom: theme.spacing.lg },
-    section: { marginBottom: theme.spacing.lg },
-    sectionTitle: { color: theme.colors.text, fontSize: theme.font.sizeLg, fontWeight: theme.font.weightBold, marginBottom: theme.spacing.md },
-    workoutCardSpacing: { marginBottom: theme.spacing.md },
+const createStyles = (appTheme: Theme) =>
+  StyleSheet.create({
+    greet: { color: appTheme.colors.muted, fontSize: appTheme.font.sizeMd },
+    name: { color: appTheme.colors.text, fontSize: appTheme.font.sizeDisplay, fontWeight: appTheme.font.weightBlack, marginBottom: appTheme.spacing.lg },
+    section: { marginBottom: appTheme.spacing.lg },
+    sectionTitle: { color: appTheme.colors.text, fontSize: appTheme.font.sizeLg, fontWeight: appTheme.font.weightBold, marginBottom: appTheme.spacing.md },
+    workoutCardSpacing: { marginBottom: appTheme.spacing.md },
     emptyWorkout: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.radius.lg,
+      backgroundColor: appTheme.colors.surface,
+      borderRadius: appTheme.radius.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: theme.spacing.xl,
+      borderColor: appTheme.colors.border,
+      padding: appTheme.spacing.xl,
       alignItems: 'center' as const,
     },
     emptyWorkoutText: {
-      color: theme.colors.muted,
-      fontSize: theme.font.sizeMd,
+      color: appTheme.colors.muted,
+      fontSize: appTheme.font.sizeMd,
       textAlign: 'center' as const,
     },
   });
-};

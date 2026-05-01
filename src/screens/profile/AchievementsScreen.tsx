@@ -4,9 +4,9 @@ import { Screen } from '../../components/ui/Screen';
 import { EmptyPlaceholder } from '../../components/profile/EmptyPlaceholder';
 import { AchievementCard } from '../../components/profile/AchievementCard';
 import { useTheme } from '../../context/ThemeContext';
-import { theme } from '../../theme/theme';
 import { useWorkout } from '../../context/WorkoutContext';
 import { buildExerciseAchievements } from '../../utils/achievements';
+import { Theme } from '../../theme/theme';
 
 export const AchievementsScreen = () => {
   const { theme: appTheme } = useTheme();
@@ -46,7 +46,7 @@ export const AchievementsScreen = () => {
   );
 };
 
-const createStyles = (appTheme: typeof theme) =>
+const createStyles = (appTheme: Theme) =>
   StyleSheet.create({
     title: {
       color: appTheme.colors.text,

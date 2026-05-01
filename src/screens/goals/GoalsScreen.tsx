@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  KeyboardAvoidingView,
   ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -257,7 +260,7 @@ export const GoalsScreen = () => {
               onPress={completed ? undefined : () => openUpdateModal(goal)}
               style={[
                 styles.goalCard,
-                completed && styles.goalCardCompleted,
+                ...(completed ? [styles.goalCardCompleted] : []),
               ]}
             >
               <View style={styles.goalTopRow}>
@@ -301,14 +304,15 @@ export const GoalsScreen = () => {
       )}
 
       <Modal transparent visible={showCreateModal} animationType="fade" onRequestClose={closeCreateModal}>
-        <View style={styles.modalBackdrop}>
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-          <View style={styles.modalCard}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>Create Goal</Text>
               <TouchableOpacity onPress={closeCreateModal} hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
@@ -318,7 +322,7 @@ export const GoalsScreen = () => {
 
             <Input
               label="Goal Name"
-              placeholder="Gain Muscle"
+              placeholder="Lose Weight"
               value={goalName}
               onChangeText={setGoalName}
               error={nameError}
@@ -395,14 +399,23 @@ export const GoalsScreen = () => {
             </View>
 
             <Button title="Create Goal" onPress={onCreateGoal} fullWidth />
-          </View>
-          </ScrollView>
-        </View>
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal transparent visible={!!activeUpdateGoal} animationType="fade" onRequestClose={closeUpdateModal}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Update Progress</Text>
             <Text style={styles.modalSub}>{activeUpdateGoal?.name}</Text>
             <Input
@@ -416,8 +429,11 @@ export const GoalsScreen = () => {
               <Button title="Cancel" onPress={closeUpdateModal} variant="ghost" />
               <Button title="Save" onPress={onSaveProgress} />
             </View>
-          </View>
-        </View>
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </Screen>
   );
@@ -608,17 +624,16 @@ const createStyles = (appTheme: Theme) => {
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
+  modalScroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   modalCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.lg,
-  },
-  modalScroll: { width: '100%' },
-  modalScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
   },
   modalTitle: {
     color: theme.colors.text,

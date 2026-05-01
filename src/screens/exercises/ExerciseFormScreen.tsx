@@ -22,7 +22,6 @@ import { useExercises } from '../../context/ExerciseContext';
 import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 import { required, numberInRange, maxLength } from '../../utils/validation';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { theme } from '../../theme/theme';
 import { useTheme } from '../../context/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseForm'>;
@@ -32,8 +31,155 @@ const stepsToText = (steps: string[]): string => steps.join('\n');
 const textToSteps = (text: string): string[] =>
   text.split('\n').map((s) => s.trim()).filter(Boolean);
 
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    sectionLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
+      fontWeight: theme.font.weightBold,
+      letterSpacing: 1.2,
+      marginBottom: theme.spacing.sm,
+    },
+    sectionGap: { marginTop: theme.spacing.xl },
+
+    card: { padding: theme.spacing.lg },
+
+    /* Dropdown */
+    dropdown: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.lg,
+      minHeight: 48,
+    },
+    dropdownValue: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.lg,
+    },
+    modalSheet: {
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      padding: theme.spacing.md,
+    },
+    modalTitle: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+    },
+    option: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.md,
+    },
+    optionText: { fontSize: theme.font.sizeMd },
+
+    /* Upload + preview */
+    uploadBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.sm,
+      backgroundColor: 'rgba(198, 255, 61, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(198, 255, 61, 0.25)',
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.md,
+      marginTop: theme.spacing.xs,
+    },
+    uploadBtnText: {
+      color: theme.colors.accent,
+      fontSize: theme.font.sizeSm,
+      fontWeight: theme.font.weightBold,
+      letterSpacing: 0.3,
+    },
+    previewImageWrap: { marginTop: theme.spacing.md, alignItems: 'flex-start' },
+    previewImage: {
+      width: '100%',
+      height: 180,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    removeImageBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    removeImageText: {
+      color: theme.colors.text,
+      fontSize: theme.font.sizeXs,
+      fontWeight: theme.font.weightMedium,
+    },
+
+    /* Steps */
+    stepsInput: { minHeight: 130, textAlignVertical: 'top', lineHeight: 22 },
+    previewWrap: {
+      marginTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      paddingTop: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    previewLabel: {
+      color: theme.colors.muted,
+      fontSize: 10,
+      fontWeight: theme.font.weightBold,
+      letterSpacing: 1,
+      marginBottom: theme.spacing.xs,
+    },
+    previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm },
+    previewBadge: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: `${theme.colors.accent}22`,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    previewBadgeText: {
+      color: theme.colors.accent,
+      fontSize: 10,
+      fontWeight: theme.font.weightBlack,
+    },
+    previewText: {
+      flex: 1,
+      color: theme.colors.muted,
+      fontSize: theme.font.sizeSm,
+      lineHeight: 20,
+    },
+
+    volumeRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    volumeField: { flex: 1 },
+    volumeDivider: { width: theme.spacing.md },
+  });
+
 export const ExerciseFormScreen = () => {
   const { theme: appTheme } = useTheme();
+  const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const { getById, addExercise, updateExercise } = useExercises();
@@ -222,7 +368,7 @@ export const ExerciseFormScreen = () => {
           onPress={pickImageFromLibrary}
           activeOpacity={0.8}
         >
-          <Ionicons name="image-outline" size={18} color={theme.colors.accent} />
+          <Ionicons name="image-outline" size={18} color={appTheme.colors.accent} />
           <Text style={styles.uploadBtnText}>Upload from Photos</Text>
         </TouchableOpacity>
 
@@ -230,7 +376,7 @@ export const ExerciseFormScreen = () => {
           <View style={styles.previewImageWrap}>
             <Image source={{ uri: imageUrl }} style={styles.previewImage} resizeMode="cover" />
             <TouchableOpacity style={styles.removeImageBtn} onPress={clearImage}>
-              <Ionicons name="close" size={14} color={theme.colors.text} />
+              <Ionicons name="close" size={14} color={appTheme.colors.text} />
               <Text style={styles.removeImageText}>Remove</Text>
             </TouchableOpacity>
           </View>
@@ -298,160 +444,15 @@ export const ExerciseFormScreen = () => {
         title={editing ? 'Save Changes' : 'Add Exercise'}
         onPress={onSave}
         fullWidth
-        style={{ marginTop: theme.spacing.xl }}
+        style={{ marginTop: appTheme.spacing.xl }}
       />
       <Button
         title="Cancel"
         variant="ghost"
         onPress={() => nav.goBack()}
         fullWidth
-        style={{ marginTop: theme.spacing.sm }}
+        style={{ marginTop: appTheme.spacing.sm }}
       />
     </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  sectionLabel: {
-    color: theme.colors.muted,
-    fontSize: 11,
-    fontWeight: theme.font.weightBold,
-    letterSpacing: 1.2,
-    marginBottom: theme.spacing.sm,
-  },
-  sectionGap: { marginTop: theme.spacing.xl },
-
-  card: { padding: theme.spacing.lg },
-
-  /* Dropdown */
-  dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.lg,
-    minHeight: 48,
-  },
-  dropdownValue: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
-  modalSheet: {
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    padding: theme.spacing.md,
-  },
-  modalTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radius.md,
-  },
-  optionText: { fontSize: theme.font.sizeMd },
-
-  /* Upload + preview */
-  uploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    backgroundColor: 'rgba(198, 255, 61, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(198, 255, 61, 0.25)',
-    borderRadius: theme.radius.md,
-    paddingVertical: theme.spacing.md,
-    marginTop: theme.spacing.xs,
-  },
-  uploadBtnText: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeSm,
-    fontWeight: theme.font.weightBold,
-    letterSpacing: 0.3,
-  },
-  previewImageWrap: { marginTop: theme.spacing.md, alignItems: 'flex-start' },
-  previewImage: {
-    width: '100%',
-    height: 180,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  removeImageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 6,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  removeImageText: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeXs,
-    fontWeight: theme.font.weightMedium,
-  },
-
-  /* Steps */
-  stepsInput: { minHeight: 130, textAlignVertical: 'top', lineHeight: 22 },
-  previewWrap: {
-    marginTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingTop: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  previewLabel: {
-    color: theme.colors.muted,
-    fontSize: 10,
-    fontWeight: theme.font.weightBold,
-    letterSpacing: 1,
-    marginBottom: theme.spacing.xs,
-  },
-  previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm },
-  previewBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: `${theme.colors.accent}22`,
-    borderWidth: 1,
-    borderColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  previewBadgeText: {
-    color: theme.colors.accent,
-    fontSize: 10,
-    fontWeight: theme.font.weightBlack,
-  },
-  previewText: {
-    flex: 1,
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeSm,
-    lineHeight: 20,
-  },
-
-  volumeRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  volumeField: { flex: 1 },
-  volumeDivider: { width: theme.spacing.md },
-});
