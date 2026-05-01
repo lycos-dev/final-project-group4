@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { theme } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { validateEmail } from '../../utils/validation';
 import { RootStackParamList } from '../../navigation/RootNavigator';
@@ -39,6 +39,7 @@ const validateLoginPassword = (v: string): string | null => {
 
 export const LoginScreen = ({ navigation }: Props) => {
   const { login } = useAuth();
+  const { theme } = useTheme(); // ← reactive theme (light or dark)
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,7 +75,6 @@ export const LoginScreen = ({ navigation }: Props) => {
   };
 
   const handleLogin = async () => {
-    // Force full validation before submit
     const eErr = validateLoginEmail(email);
     const pErr = validateLoginPassword(password);
     setEmailError(eErr);
@@ -96,7 +96,7 @@ export const LoginScreen = ({ navigation }: Props) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.kav}
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
     >
       <Screen scroll>
         <Animated.View
@@ -115,21 +115,33 @@ export const LoginScreen = ({ navigation }: Props) => {
             >
               <Ionicons name="barbell-outline" size={32} color={theme.colors.accentText} />
             </LinearGradient>
-            <Text style={styles.logoText}>NEXA</Text>
-            <Text style={styles.logoTagline}>Track. Progress. Dominate.</Text>
+            <Text style={[styles.logoText, { color: theme.colors.text }]}>NEXA</Text>
+            <Text style={[styles.logoTagline, { color: theme.colors.muted }]}>
+              Track. Progress. Dominate.
+            </Text>
           </View>
 
           {/* ── Heading ───────────────────────────────────────────────── */}
           <View style={styles.heading}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Welcome back</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
+              Sign in to continue your journey
+            </Text>
           </View>
 
           {/* ── Server Error Banner ───────────────────────────────────── */}
           {serverError ? (
-            <View style={styles.serverErrorBanner}>
+            <View style={[
+              styles.serverErrorBanner,
+              {
+                backgroundColor: `${theme.colors.danger}18`,
+                borderColor: `${theme.colors.danger}55`,
+              },
+            ]}>
               <Ionicons name="warning-outline" size={15} color={theme.colors.danger} />
-              <Text style={styles.serverErrorText}>{serverError}</Text>
+              <Text style={[styles.serverErrorText, { color: theme.colors.danger }]}>
+                {serverError}
+              </Text>
             </View>
           ) : null}
 
@@ -155,10 +167,9 @@ export const LoginScreen = ({ navigation }: Props) => {
               error={passwordError}
               secureTextEntry={!showPassword}
               editable={!loading}
-              // Password visibility toggle via the unit slot
               unit={undefined}
-              // We render the toggle as a right element by wrapping
             />
+
             {/* Password show/hide toggle */}
             <TouchableOpacity
               style={styles.showPasswordBtn}
@@ -170,7 +181,7 @@ export const LoginScreen = ({ navigation }: Props) => {
                 size={18}
                 color={theme.colors.muted}
               />
-              <Text style={styles.showPasswordText}>
+              <Text style={[styles.showPasswordText, { color: theme.colors.muted }]}>
                 {showPassword ? 'Hide' : 'Show'}
               </Text>
             </TouchableOpacity>
@@ -186,9 +197,11 @@ export const LoginScreen = ({ navigation }: Props) => {
 
           {/* ── Footer ────────────────────────────────────────────────── */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: theme.colors.muted }]}>
+              Don't have an account?{' '}
+            </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.footerLink}>Create one</Text>
+              <Text style={[styles.footerLink, { color: theme.colors.accent }]}>Create one</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -197,94 +210,60 @@ export const LoginScreen = ({ navigation }: Props) => {
   );
 };
 
+// Static layout styles only — no colors here (all colors applied inline via theme)
 const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: theme.colors.bg },
+  inner: { flex: 1, paddingBottom: 32 },
 
-  inner: { flex: 1, paddingBottom: theme.spacing.xxl },
-
-  // Logo
-  logoSection: { alignItems: 'center', paddingTop: theme.spacing.xxl, marginBottom: theme.spacing.xl },
+  logoSection: { alignItems: 'center', paddingTop: 32, marginBottom: 24 },
   logoCircle: {
     width: 72, height: 72, borderRadius: 36,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: theme.spacing.md,
-    shadowColor: theme.colors.accent,
+    marginBottom: 12,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 18,
     elevation: 10,
   },
   logoText: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeDisplay,
-    fontWeight: theme.font.weightBlack,
+    fontSize: 34,
+    fontWeight: '900',
     letterSpacing: 6,
   },
   logoTagline: {
-    color: theme.colors.muted,
-    fontSize: theme.font.sizeXs,
+    fontSize: 12,
     letterSpacing: 2,
-    fontWeight: theme.font.weightMedium,
+    fontWeight: '500',
     marginTop: 4,
   },
 
-  // Heading
-  heading: { marginBottom: theme.spacing.xl },
-  title: {
-    color: theme.colors.text,
-    fontSize: theme.font.sizeXxl,
-    fontWeight: theme.font.weightBlack,
-    marginBottom: theme.spacing.xs,
-  },
-  subtitle: { color: theme.colors.muted, fontSize: theme.font.sizeMd },
+  heading: { marginBottom: 24 },
+  title: { fontSize: 28, fontWeight: '900', marginBottom: 4 },
+  subtitle: { fontSize: 16 },
 
-  // Server error
   serverErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: `${theme.colors.danger}18`,
+    gap: 4,
     borderWidth: 1,
-    borderColor: `${theme.colors.danger}55`,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
   },
-  serverErrorText: { color: theme.colors.danger, fontSize: theme.font.sizeSm, flex: 1 },
+  serverErrorText: { fontSize: 14, flex: 1 },
 
-  // Form
-  form: { marginBottom: theme.spacing.md },
+  form: { marginBottom: 12 },
   showPasswordBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     alignSelf: 'flex-end',
-    marginTop: -theme.spacing.md,
-    marginBottom: theme.spacing.lg,
+    marginTop: -12,
+    marginBottom: 16,
   },
-  showPasswordText: { color: theme.colors.muted, fontSize: theme.font.sizeXs },
-  submitBtn: { marginTop: theme.spacing.sm },
+  showPasswordText: { fontSize: 12 },
+  submitBtn: { marginTop: 8 },
 
-  // Demo hint
-  demoHint: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.surfaceAlt,
-    borderRadius: theme.radius.md,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  demoText: { color: theme.colors.muted, fontSize: theme.font.sizeXs },
-  demoValue: { color: theme.colors.accent, fontWeight: theme.font.weightMedium },
-
-  // Footer
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: theme.spacing.sm },
-  footerText: { color: theme.colors.muted, fontSize: theme.font.sizeMd },
-  footerLink: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-  },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
+  footerText: { fontSize: 16 },
+  footerLink: { fontSize: 16, fontWeight: '700' },
 });
