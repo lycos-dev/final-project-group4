@@ -34,11 +34,11 @@ const LEVEL_COLORS: Record<PresetRoutine['level'], string> = {
   Advanced:     'rgba(255, 120,  80, 0.15)',
 };
 
-const LEVEL_TEXT_COLORS: Record<PresetRoutine['level'], string> = {
-  Beginner:     '#64DC82',
-  Intermediate: '#C6FF3D',
-  Advanced:     '#FF7850',
-};
+const getLevelTextColors = (isDark: boolean): Record<PresetRoutine['level'], string> => ({
+  Beginner:     isDark ? '#64DC82' : '#2E9E58',
+  Intermediate: isDark ? '#C6FF3D' : '#2E9E58',
+  Advanced:     isDark ? '#FF7850' : '#DC3545',
+});
 
 const LEVEL_ICONS: Record<PresetRoutine['level'], keyof typeof Ionicons.glyphMap> = {
   Beginner:     'leaf-outline',
@@ -47,12 +47,13 @@ const LEVEL_ICONS: Record<PresetRoutine['level'], keyof typeof Ionicons.glyphMap
 };
 
 export const ExploreRoutinesScreen = () => {
-  const { theme: appTheme } = useTheme();
+  const { theme: appTheme, isDark } = useTheme();
   const theme = appTheme;
   const styles = createStyles(appTheme);
   const nav = useNavigation<Nav>();
   const { exercises: activeExercises, addExercises, clearWorkout } = useWorkout();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const LEVEL_TEXT_COLORS = getLevelTextColors(isDark);
 
   const toggle = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -63,7 +64,11 @@ export const ExploreRoutinesScreen = () => {
     const doStart = () => {
       clearWorkout();
       addExercises(routine.exercises);
-      nav.navigate('LogWorkout', { exercisesToAdd: [], routineName: routine.name });
+      nav.navigate('LogWorkout', { 
+        exercisesToAdd: [], 
+        routineName: routine.name,
+        sourceScreen: 'ExploreRoutines' 
+      });
     };
 
     // Warn if a workout is already in progress

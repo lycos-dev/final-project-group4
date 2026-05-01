@@ -17,8 +17,9 @@ import { Button } from '../../components/ui/Button';
 import { IconButton } from '../../components/ui/IconButton';
 import { useExercises } from '../../context/ExerciseContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { RootStackParamList } from '../../navigation/RootNavigator';
-import { Theme } from '../../theme/theme';
+import { type Theme } from '../../theme/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
 type R   = RouteProp<RootStackParamList, 'ExerciseDetail'>;
@@ -28,10 +29,12 @@ const ExerciseHeroImage = ({
   uri,
   name,
   heroStyles,
+  gradientColors,
 }: {
   uri: string;
   name: string;
   heroStyles: ReturnType<typeof createHeroStyles>;
+  gradientColors: readonly [string, string];
 }) => (
   <View style={heroStyles.container}>
     <ImageBackground
@@ -42,7 +45,7 @@ const ExerciseHeroImage = ({
       accessibilityLabel={`Demonstration of ${name}`}
     >
       <LinearGradient
-        colors={['transparent', 'rgba(11,11,15,0.92)']}
+        colors={gradientColors}
         style={heroStyles.gradient}
       />
     </ImageBackground>
@@ -123,28 +126,33 @@ type TabName = typeof TABS[number];
 interface TabBarProps {
   activeTab: TabName;
   onSelect: (t: TabName) => void;
-  tabBarStyles: ReturnType<typeof createTabBarStyles>;
+  appTheme: Theme;
 }
-const TabBar = ({ activeTab, onSelect, tabBarStyles }: TabBarProps) => (
-  <View style={tabBarStyles.bar}>
-    {TABS.map((tab) => {
-      const active = tab === activeTab;
-      return (
-        <TouchableOpacity
-          key={tab}
-          style={[tabBarStyles.tab, active && tabBarStyles.tabActive]}
-          onPress={() => onSelect(tab)}
-          activeOpacity={0.7}
-        >
-          <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive]}>
-            {tab}
-          </Text>
-          {active && <View style={tabBarStyles.underline} />}
-        </TouchableOpacity>
-      );
-    })}
-  </View>
-);
+const TabBar = ({ activeTab, onSelect, appTheme }: TabBarProps) => {
+  const tabBarStyles = useMemo(() => createTabBarStyles(appTheme), [appTheme]);
+  return (
+    <View style={tabBarStyles.bar}>
+      {TABS.map((tab) => {
+        const active = tab === activeTab;
+        return (
+          <TouchableOpacity
+            key={tab}
+            style={[tabBarStyles.tab, active && tabBarStyles.tabActive]}
+            onPress={() => onSelect(tab)}
+            activeOpacity={0.7}
+          >
+            <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive, 
+              { color: active ? appTheme.colors.accent : appTheme.colors.muted }
+            ]}>
+              {tab}
+            </Text>
+            {active && <View style={[tabBarStyles.underline, { backgroundColor: appTheme.colors.accent }]} />}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
 const createTabBarStyles = (theme: Theme) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
@@ -181,15 +189,15 @@ const createTabBarStyles = (theme: Theme) => StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export const ExerciseDetailScreen = () => {
-  const { theme: appTheme } = useTheme();
+  const { theme: appTheme, isDark } = useTheme();
   const nav = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const { getById, removeExercise } = useExercises();
+  const { completedWorkouts } = useWorkout();
   const exercise = getById(params.exerciseId);
   const styles = useMemo(() => createStyles(appTheme), [appTheme]);
   const heroStyles = useMemo(() => createHeroStyles(appTheme), [appTheme]);
   const stepStyles = useMemo(() => createStepStyles(appTheme), [appTheme]);
-  const tabBarStyles = useMemo(() => createTabBarStyles(appTheme), [appTheme]);
 
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
 
@@ -230,33 +238,51 @@ export const ExerciseDetailScreen = () => {
     ]);
   };
 
+  // Dynamic gradient colors for light/dark mode - darker overlay for text readability
+  const gradientColors: readonly [string, string] = [
+    'transparent',
+    isDark ? 'rgba(11,11,15,0.92)' : 'rgba(0,0,0,0.35)',
+  ];
+
+  // Get completed workouts that include this exercise
+  const exerciseHistory = completedWorkouts
+    .filter(workout => 
+      workout.exercises.some(ex => ex.originalExerciseId === exercise.id)
+    )
+    .sort((a, b) => b.completedAt - a.completedAt);
+
   return (
     <Screen scroll>
       {/* ── Hero Image ───────────────────────────────────────────────── */}
       {exercise.imageUrl ? (
-        <ExerciseHeroImage uri={exercise.imageUrl} name={exercise.name} heroStyles={heroStyles} />
+        <ExerciseHeroImage
+          uri={exercise.imageUrl}
+          name={exercise.name}
+          heroStyles={heroStyles}
+          gradientColors={gradientColors}
+        />
       ) : (
-        <View style={styles.imageFallback}>
+        <View style={[styles.imageFallback, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface }]}>
           <Ionicons name="image-outline" size={40} color={appTheme.colors.border} />
-          <Text style={styles.imageFallbackText}>No image added yet</Text>
+          <Text style={[styles.imageFallbackText, { color: appTheme.colors.muted }]}>No image added yet</Text>
         </View>
       )}
 
       {/* ── Title & Meta ─────────────────────────────────────────────── */}
-      <Text style={styles.title}>{exercise.name}</Text>
-      <View style={styles.metaRow}>
-        <View style={styles.metaChip}>
+      <Text style={[styles.title, { color: appTheme.colors.text }]}>{exercise.name}</Text>
+      <View style={[styles.metaRow]}>
+        <View style={[styles.metaChip, { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.border }]}>
           <Ionicons name="body-outline" size={13} color={appTheme.colors.accent} />
-          <Text style={styles.metaChipText}>{exercise.muscleGroup}</Text>
+          <Text style={[styles.metaChipText, { color: appTheme.colors.muted }]}>{exercise.muscleGroup}</Text>
         </View>
-        <View style={styles.metaChip}>
+        <View style={[styles.metaChip, { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.border }]}>
           <Ionicons name="barbell-outline" size={13} color={appTheme.colors.accent} />
-          <Text style={styles.metaChipText}>{exercise.equipment}</Text>
+          <Text style={[styles.metaChipText, { color: appTheme.colors.muted }]}>{exercise.equipment}</Text>
         </View>
       </View>
 
       {/* ── Tab Bar ──────────────────────────────────────────────────── */}
-      <TabBar activeTab={activeTab} onSelect={setActiveTab} tabBarStyles={tabBarStyles} />
+      <TabBar activeTab={activeTab} onSelect={setActiveTab} appTheme={appTheme} />
 
       {/* ── Overview tab ─────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
@@ -264,24 +290,24 @@ export const ExerciseDetailScreen = () => {
           {/* Default Volume */}
           <View style={styles.statsRow}>
             <Card style={styles.stat}>
-              <Text style={styles.statValue}>{exercise.defaultSets}</Text>
-              <Text style={styles.statLabel}>SETS</Text>
+              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>{exercise.defaultSets}</Text>
+              <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>SETS</Text>
             </Card>
             <Card style={styles.stat}>
-              <Text style={styles.statValue}>{exercise.defaultReps}</Text>
-              <Text style={styles.statLabel}>REPS</Text>
+              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>{exercise.defaultReps}</Text>
+              <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>REPS</Text>
             </Card>
           </View>
 
           {/* Quick description if no image */}
           {exercise.steps.length > 0 && (
             <Card style={styles.overviewPreview}>
-              <Text style={styles.overviewPreviewTitle}>Quick Summary</Text>
-              <Text style={styles.overviewPreviewText} numberOfLines={3}>
+              <Text style={[styles.overviewPreviewTitle, { color: appTheme.colors.text }]}>Quick Summary</Text>
+              <Text style={[styles.overviewPreviewText, { color: appTheme.colors.muted }]} numberOfLines={3}>
                 {exercise.steps[0]}
               </Text>
               <TouchableOpacity onPress={() => setActiveTab('How To')} style={styles.overviewPreviewLink}>
-                <Text style={styles.overviewPreviewLinkText}>See all {exercise.steps.length} steps →</Text>
+                <Text style={[styles.overviewPreviewLinkText, { color: appTheme.colors.accent }]}>See all {exercise.steps.length} steps →</Text>
               </TouchableOpacity>
             </Card>
           )}
@@ -309,8 +335,8 @@ export const ExerciseDetailScreen = () => {
           {exercise.steps.length === 0 ? (
             <View style={styles.emptyTab}>
               <Ionicons name="list-outline" size={44} color={appTheme.colors.border} />
-              <Text style={styles.emptyTabTitle}>No instructions yet</Text>
-              <Text style={styles.emptyTabSub}>
+              <Text style={[styles.emptyTabTitle, { color: appTheme.colors.muted }]}>No instructions yet</Text>
+              <Text style={[styles.emptyTabSub, { color: appTheme.colors.muted }]}>
                 Edit this exercise to add step-by-step instructions.
               </Text>
               <Button
@@ -322,8 +348,8 @@ export const ExerciseDetailScreen = () => {
           ) : (
             <View>
               <View style={styles.stepsHeader}>
-                <Text style={styles.sectionTitle}>Step-by-step</Text>
-                <Text style={styles.stepCount}>{exercise.steps.length} steps</Text>
+                <Text style={[styles.sectionTitle, { color: appTheme.colors.text }]}>Step-by-step</Text>
+                <Text style={[styles.stepCount, { color: appTheme.colors.muted }]}>{exercise.steps.length} steps</Text>
               </View>
               <Card style={styles.stepsCard}>
                 {exercise.steps.map((step, i) => (
@@ -338,15 +364,64 @@ export const ExerciseDetailScreen = () => {
       {/* ── History tab ──────────────────────────────────────────────── */}
       {activeTab === 'History' && (
         <View style={styles.emptyTab}>
-          <MaterialCommunityIcons
-            name="chart-timeline-variant"
-            size={44}
-            color={appTheme.colors.border}
-          />
-          <Text style={styles.emptyTabTitle}>No history yet</Text>
-          <Text style={styles.emptyTabSub}>
-            Completed workouts that include this exercise will appear here.
-          </Text>
+          {exerciseHistory.length === 0 ? (
+            <>
+              <MaterialCommunityIcons
+                name="chart-timeline-variant"
+                size={44}
+                color={appTheme.colors.border}
+              />
+              <Text style={[styles.emptyTabTitle, { color: appTheme.colors.muted }]}>No history yet</Text>
+              <Text style={[styles.emptyTabSub, { color: appTheme.colors.muted }]}>
+                Completed workouts that include this exercise will appear here.
+              </Text>
+            </>
+          ) : (
+            <View style={{ width: '100%', alignItems: 'flex-start', paddingVertical: 0 }}>
+              <View style={styles.stepsHeader}>
+                <Text style={[styles.sectionTitle, { color: appTheme.colors.text }]}>Completed Workouts</Text>
+                <Text style={[styles.stepCount, { color: appTheme.colors.muted }]}>{exerciseHistory.length}</Text>
+              </View>
+              {exerciseHistory.map((workout, idx) => {
+                const workoutExercise = workout.exercises.find(ex => ex.originalExerciseId === exercise.id);
+                const date = new Date(workout.completedAt).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                });
+                const totalSetsInThisExercise = workoutExercise?.sets.length || 0;
+                const totalReps = workoutExercise?.sets.reduce((sum, set) => sum + parseInt(set.reps || '0'), 0) || 0;
+                
+                return (
+                  <Card key={idx} style={styles.historyCard}>
+                    <View style={styles.historyHeader}>
+                      <View>
+                        <Text style={[styles.historyWorkoutName, { color: appTheme.colors.text }]}>{workout.routineName}</Text>
+                        <Text style={[styles.historyDate, { color: appTheme.colors.muted }]}>{date}</Text>
+                      </View>
+                      <View style={styles.historyDuration}>
+                        <Ionicons name="time-outline" size={14} color={appTheme.colors.accent} />
+                        <Text style={[styles.historyDurationText, { color: appTheme.colors.accent }]}>
+                          {workout.durationMinutes}m
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.historyStats, { borderTopColor: appTheme.colors.border }]}>
+                      <View style={styles.historyStat}>
+                        <Text style={[styles.historyStatValue, { color: appTheme.colors.accent }]}>{totalSetsInThisExercise}</Text>
+                        <Text style={[styles.historyStatLabel, { color: appTheme.colors.muted }]}>Sets</Text>
+                      </View>
+                      <View style={[styles.historyStatDivider, { backgroundColor: appTheme.colors.border }]} />
+                      <View style={styles.historyStat}>
+                        <Text style={[styles.historyStatValue, { color: appTheme.colors.accent }]}>{totalReps}</Text>
+                        <Text style={[styles.historyStatLabel, { color: appTheme.colors.muted }]}>Total Reps</Text>
+                      </View>
+                    </View>
+                  </Card>
+                );
+              })}
+            </View>
+          )}
         </View>
       )}
     </Screen>
@@ -485,4 +560,56 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 
   muted: { color: theme.colors.muted },
+
+  // History styles
+  historyCard: { marginBottom: theme.spacing.md },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
+  },
+  historyWorkoutName: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    marginBottom: 4,
+  },
+  historyDate: {
+    fontSize: theme.font.sizeSm,
+  },
+  historyDuration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: `${theme.colors.accent}15`,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.pill,
+  },
+  historyDurationText: {
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightMedium,
+  },
+  historyStats: {
+    flexDirection: 'row',
+    paddingTop: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    borderTopWidth: 1,
+  },
+  historyStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  historyStatValue: {
+    fontSize: theme.font.sizeXl,
+    fontWeight: theme.font.weightBold,
+  },
+  historyStatLabel: {
+    fontSize: theme.font.sizeSm,
+    marginTop: 4,
+  },
+  historyStatDivider: {
+    width: 1,
+    height: 24,
+  },
 });

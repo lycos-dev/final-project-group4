@@ -108,6 +108,8 @@ export const StreakCounter = ({
               navigation.navigate('WorkoutHistory', {
                 dateMs: new Date(currentYear, currentMonth, day).getTime(),
               });
+              // Clear transient selection so highlight doesn't persist after navigation
+              setTimeout(() => setSelectedDay(null), 120);
             };
 
             return (

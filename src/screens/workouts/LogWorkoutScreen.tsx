@@ -588,7 +588,12 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   const doDiscard = () => {
     discardWorkout();       // reset without saving to history
-    navigation.goBack();
+    const sourceScreen = route.params?.sourceScreen;
+    if (sourceScreen === 'ExploreRoutines') {
+      navigation.navigate('Tabs', { screen: 'Library' });
+    } else {
+      navigation.goBack();
+    }
   };
 
   const handleDiscard = () => {
@@ -623,7 +628,12 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
       Animated.timing(backBounce, { toValue: 0, duration: 160, useNativeDriver: true }),
     ]).start(() => {
       setMinimized(true);
-      navigation.goBack();
+      const sourceScreen = route.params?.sourceScreen;
+      if (sourceScreen === 'ExploreRoutines') {
+        navigation.navigate('Tabs', { screen: 'Library' });
+      } else {
+        navigation.goBack();
+      }
     });
   };
   const backTranslateY = backBounce.interpolate({ inputRange: [0, 1], outputRange: [0, 4] });

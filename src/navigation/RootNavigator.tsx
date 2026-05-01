@@ -41,7 +41,7 @@ export type RootStackParamList = {
   Goals: undefined;
   Achievements: undefined;
   WorkoutHistory: { dateMs: number };
-  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string };
+  LogWorkout: { exercisesToAdd?: Exercise[]; routineName?: string; sourceScreen?: 'ExploreRoutines' };
   SaveWorkout: {
     routineName?: string;
     durationSeconds: number;

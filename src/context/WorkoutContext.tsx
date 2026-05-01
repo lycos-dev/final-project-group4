@@ -79,6 +79,8 @@ interface WorkoutContextType {
   getCompletedWorkoutsByDate: (date: Date) => CompletedWorkout[];
   getCompletedDatesThisMonth: () => number[];
   getRecentWorkout: () => CompletedWorkout | null;
+  /** Delete a completed workout from history by id */
+  deleteCompletedWorkout: (id: string) => void;
 
   // ── timer / session state ─────────────────────────────────────────────────
   isActive: boolean;
@@ -365,6 +367,10 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const getRecentWorkout = (): CompletedWorkout | null =>
     completedWorkouts.length === 0 ? null : completedWorkouts[completedWorkouts.length - 1];
 
+  const deleteCompletedWorkout = (id: string) => {
+    setCompletedWorkouts((prev) => prev.filter((w) => w.id !== id));
+  };
+
   const updateSettings = (patch: Partial<WorkoutSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
   };
@@ -394,6 +400,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         getCompletedWorkoutsByDate,
         getCompletedDatesThisMonth,
         getRecentWorkout,
+        deleteCompletedWorkout,
         isActive,
         isMinimized,
         setMinimized,
