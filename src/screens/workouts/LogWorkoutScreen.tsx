@@ -68,6 +68,10 @@ const SET_TYPE_INFO: Record<SetType | "remove", { title: string; body: string }>
     title: "Failure Set",
     body: "Failure sets refer to max-effort sets performed near muscular failure.",
   },
+  drop: {
+    title: "Drop Set",
+    body: "Drop sets involve reducing weight after failure to continue the set.",
+  },
   remove: {
     title: "Remove Set",
     body: "Remove set deletes this set from the exercise.",
@@ -76,8 +80,9 @@ const SET_TYPE_INFO: Record<SetType | "remove", { title: string; body: string }>
 
 const getSetTypeOptions = (theme: Theme): { key: SetType | "remove"; label: string; color: string }[] => [
   { key: "normal",  label: "Normal Set",  color: theme.colors.text },
-  { key: "warmup",  label: "Warm-Up Set", color: "#F5C518" },
-  { key: "failure", label: "Failure Set", color: theme.colors.danger },
+  { key: "warmup",  label: "Warm-Up Set",  color: "#F5C518" },
+  { key: "drop",  label: "Drop Set",  color: "#4A90D9" },
+  { key: "failure",  label: "Failure Set",  color: theme.colors.danger },
   { key: "remove",  label: "Remove Set",  color: theme.colors.muted },
 ];
 
@@ -323,6 +328,8 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   const [showExerciseMenu,   setShowExerciseMenu]   = useState<string | null>(null);
   const [reorderOpen,        setReorderOpen]        = useState(false);
   const [reorderTargetId,    setReorderTargetId]    = useState<string | null>(null);
+  const [supersetOpen,       setSupersetOpen]       = useState(false);
+  const [supersetTargetId,   setSupersetTargetId]   = useState<string | null>(null);
 
   // Duration edit modal
   const [durationOpen,  setDurationOpen]  = useState(false);
@@ -540,6 +547,38 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
     navigation.navigate("AddExercise", { replaceExerciseId: exerciseId });
   };
 
+  const handleAddSuperset = (targetId: string) => {
+    setSupersetTargetId(targetId);
+    setSupersetOpen(true);
+  };
+
+  const addToSuperset = (targetId: string, exerciseId: string) => {
+    setExercises((prev: LogExercise[]) => {
+      return prev.map((ex) => {
+        if (ex.id === targetId) {
+          return { ...ex, supersetWith: exerciseId };
+        }
+        if (ex.id === exerciseId) {
+          return { ...ex, supersetWith: targetId };
+        }
+        return ex;
+      });
+    });
+    setSupersetOpen(false);
+    setSupersetTargetId(null);
+  };
+
+  const removeFromSuperset = (exerciseId: string) => {
+    setExercises((prev: LogExercise[]) => {
+      return prev.map((ex) => {
+        if (ex.id === exerciseId || ex.supersetWith === exerciseId) {
+          return { ...ex, supersetWith: undefined };
+        }
+        return ex;
+      });
+    });
+  };
+
   const setSetType = (exerciseId: string, setId: string, type: SetType | "remove") => {
     if (type === "remove") {
       setExercises((prev: LogExercise[]) =>
@@ -711,7 +750,7 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
             <Ionicons name="chevron-down" size={28} color={theme.colors.text} />
           </Animated.View>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Log Workout</Text>
+        <Text style={[styles.headerTitle, { marginLeft: -8 }]}>Log Workout</Text>
         <View style={styles.headerRight}>
           {/* Settings icon beside Finish */}
           <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7} style={styles.headerSettingsBtn}>
@@ -772,8 +811,10 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                     <View style={styles.exerciseIcon}>
                       <Ionicons name="barbell" size={32} color={theme.colors.accent} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.exerciseTitle}>{exercise.name}</Text>
+                     <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={styles.exerciseTitle}>{exercise.name}</Text>
+                      </View>
                       <Text style={styles.exerciseSubLink}>TAP FOR DETAILS</Text>
                     </View>
                   </TouchableOpacity>
@@ -785,9 +826,40 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
                   </TouchableOpacity>
                 </View>
 
+                {/* Superset indicator */}
+                {exercise.supersetWith && (
+                  <View style={{ marginBottom: theme.spacing.sm }}>
+                    <View style={{
+                      alignSelf: 'flex-start',
+                      backgroundColor: '#9333EA20',
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 4,
+                      borderWidth: 1,
+                      borderColor: '#9333EA40',
+                    }}>
+                      <Text style={{
+                        color: '#9333EA',
+                        fontSize: 10,
+                        fontWeight: theme.font.weightBold,
+                      }}>
+                        SUPERSET
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Notes */}
                 <TextInput
                   placeholder="Add notes here..."
+                  value={exercise.notes}
+                  onChangeText={(text: string) => {
+                    setExercises((prev: LogExercise[]) =>
+                      prev.map((ex) =>
+                        ex.id === exercise.id ? { ...ex, notes: text } : ex
+                      )
+                    );
+                  }}
                   style={styles.notesInput}
                   placeholderTextColor={theme.colors.muted}
                 />
@@ -1024,6 +1096,31 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               <MaterialCommunityIcons name="sync" size={20} color={theme.colors.accent} />
               <Text style={styles.menuItemText}>Replace Exercise</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                const exId = showExerciseMenu;
+                setShowExerciseMenu(null);
+                if (exId) handleAddSuperset(exId);
+              }}
+            >
+              <MaterialCommunityIcons name="alpha-s-box-outline" size={20} color={theme.colors.accent} />
+              <Text style={styles.menuItemText}>Add To Superset</Text>
+            </TouchableOpacity>
+            {showExerciseMenu && exercises.find(e => e.id === showExerciseMenu)?.supersetWith && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  if (showExerciseMenu) {
+                    removeFromSuperset(showExerciseMenu);
+                    setShowExerciseMenu(null);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons name="alpha-s-box-outline" size={20} color="#9333EA" />
+                <Text style={[styles.menuItemText, { color: '#9333EA' }]}>Remove from Superset</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.menuItem, styles.menuItemDanger]}
               onPress={() => {
@@ -1403,6 +1500,55 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         </Pressable>
       </Modal>
 
+      {/* ── Superset modal ───────────────────────────────────────────────── */}
+      <Modal
+        visible={supersetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSupersetOpen(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setSupersetOpen(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Add To Superset</Text>
+            <Text style={{ color: theme.colors.muted, fontSize: 13, marginBottom: theme.spacing.md }}>
+              Select an exercise to pair with this exercise as a superset.
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {exercises
+                .filter((ex) => ex.id !== supersetTargetId)
+                .map((exercise) => (
+                  <TouchableOpacity
+                    key={exercise.id}
+                    style={styles.reorderRow}
+                    onPress={() => {
+                      if (supersetTargetId) {
+                        addToSuperset(supersetTargetId, exercise.id);
+                      }
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.colors.text, fontWeight: theme.font.weightBold }}>
+                        {exercise.name}
+                      </Text>
+                      <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                        {exercise.muscleGroup}
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons name="alpha-s-box-outline" size={20} color={theme.colors.accent} />
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+            <Button
+              title="Cancel"
+              variant="ghost"
+              onPress={() => setSupersetOpen(false)}
+              fullWidth
+              style={{ marginTop: theme.spacing.sm }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ── Workout Settings modal ──────────────────────────────────────────── */}
       <Modal
         visible={settingsOpen}
@@ -1605,6 +1751,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeLg,
     fontWeight: theme.font.weightBold,
     color: theme.colors.text,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   headerRight: {
     flexDirection: "row",

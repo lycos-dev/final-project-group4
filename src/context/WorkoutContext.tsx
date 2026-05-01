@@ -10,7 +10,7 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Exercise } from '../types';
 
-export type SetType = 'normal' | 'warmup' | 'failure';
+export type SetType = 'normal' | 'warmup' | 'failure' | 'drop';
 export type WeightUnit = 'kg' | 'lb';
 
 export interface WorkoutSet {
@@ -27,6 +27,7 @@ export interface LogExercise extends Exercise {
   notes: string;
   restTimerDuration: number;
   sets: WorkoutSet[];
+  supersetWith?: string; // id of paired exercise for superset
 }
 
 export interface CompletedWorkout {
@@ -64,7 +65,7 @@ export interface WorkoutSettings {
 }
 
 interface WorkoutContextType {
-  // ── active workout exercises ──────────────────────────────────────────────
+  // ── active workout exercises ──────────────────────────────────────────
   exercises: LogExercise[];
   setExercises: (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => void;
   addExercises: (exercisesToAdd: Exercise[]) => void;
@@ -74,15 +75,16 @@ interface WorkoutContextType {
   /** Reset all state WITHOUT saving to history (discard). */
   discardWorkout: () => void;
 
-  // ── completed history ─────────────────────────────────────────────────────
+  // ── completed history ─────────────────────────────────────────────
   completedWorkouts: CompletedWorkout[];
+  exerciseHistory: Record<string, { setCount: number; reps: string; weight: string }>;
   getCompletedWorkoutsByDate: (date: Date) => CompletedWorkout[];
   getCompletedDatesThisMonth: () => number[];
   getRecentWorkout: () => CompletedWorkout | null;
   /** Delete a completed workout from history by id */
   deleteCompletedWorkout: (id: string) => void;
 
-  // ── timer / session state ─────────────────────────────────────────────────
+  // ── timer / session state ─────────────────────────────────────────
   isActive: boolean;
   isMinimized: boolean;
   setMinimized: (v: boolean) => void;
@@ -96,7 +98,7 @@ interface WorkoutContextType {
   /** Start the timer if it hasn't started yet. */
   ensureStarted: () => void;
 
-  // ── settings ──────────────────────────────────────────────────────────────
+  // ── settings ──────────────────────────────────────────────────────
   settings: WorkoutSettings;
   updateSettings: (patch: Partial<WorkoutSettings>) => void;
   favoriteExerciseIds: Set<string>;
@@ -125,7 +127,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(new Set());
-  const [exerciseHistory, setExerciseHistory] = useState<Record<string, { reps: string; weight: string }>>({});
+  const [exerciseHistory, setExerciseHistory] = useState<Record<string, { setCount: number; reps: string; weight: string }>>({});
 
   // Load persisted data on mount
   useEffect(() => {
@@ -192,7 +194,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     AsyncStorage.setItem(EXERCISE_HISTORY_KEY, JSON.stringify(exerciseHistory)).catch(() => {});
   }, [exerciseHistory]);
 
-  // ── timer internals ───────────────────────────────────────────────────────
+  // ── timer internals ───────────────────────────────────────────────
   const [isActive, setIsActive] = useState(false);
   const [isMinimized, setIsMinimizedState] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -209,7 +211,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
    */
   const segmentStartRef = useRef<number | null>(null);
 
-  // ── timer helpers ─────────────────────────────────────────────────────────
+  // ── timer helpers ─────────────────────────────────────────────────
 
   const ensureStarted = () => {
     if (!isActive) {
@@ -247,10 +249,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     return Math.max(0, total);
   }, [isActive, isPaused]);
 
-  /**
-   * Manually set elapsed seconds. Adjusts the accumulated counter and
-   * re-anchors the segment start so future ticks are correct.
-   */
   const setElapsedSeconds = (seconds: number) => {
     const s = Math.max(0, seconds);
     const now = Date.now();
@@ -274,7 +272,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const setMinimized = (v: boolean) => setIsMinimizedState(v);
 
-  // ── exercise helpers ──────────────────────────────────────────────────────
+  // ── exercise helpers ─────────────────────────────────────────────
 
   const setExercises = (value: LogExercise[] | ((prev: LogExercise[]) => LogExercise[])) => {
     setExercisesState(value as any);
@@ -297,13 +295,22 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         restTimerDuration: routineRestTimer,
         sets: hasSavedRoutineData
           ? ex.routineSets.map((s: any) => ({ ...s, completed: false }))
-          : [{
-              id: `${uniqueInstanceId}-set-0`,
-              reps: history ? history.reps : '',
-              weight: history ? history.weight : '',
+          : history
+          ? // Create same number of sets as in history, pre-filled with history values
+            Array.from({ length: history.setCount }, (_, i) => ({
+              id: `${uniqueInstanceId}-set-${i}`,
+              reps: history.reps,
+              weight: history.weight,
               completed: false,
               type: 'normal' as SetType,
-            }], // Always provide at least one set, pre-filled with history if available
+            }))
+          : [{
+              id: `${uniqueInstanceId}-set-0`,
+              reps: '',
+              weight: '',
+              completed: false,
+              type: 'normal' as SetType,
+            }], // Always provide at least one empty set
       };
     });
     setExercisesState((prev) => [...prev, ...newExercises]);
@@ -327,8 +334,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const calculateCompletedSets = (exs: LogExercise[]) =>
     exs.reduce((acc, ex) => acc + ex.sets.filter((set) => set.completed).length, 0);
 
-  // ── private reset (shared by clearWorkout + discardWorkout) ──────────────
-
+  // ── private reset (shared by clearWorkout + discardWorkout) ──────
   const _resetState = () => {
     setExercisesState([]);
     setIsActive(false);
@@ -397,13 +403,12 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     // Save exercise set history for future pre-fill
     const newHistory = { ...exerciseHistory };
     exercises.forEach((ex) => {
-      const completedSets = ex.sets.filter((s) => s.completed);
-      if (completedSets.length > 0) {
-        // Save the last completed set as reference
-        const lastSet = completedSets[completedSets.length - 1];
+      if (ex.sets.length > 0) {
+        // Save the total number of sets and the values from the first set
         newHistory[ex.originalExerciseId] = {
-          reps: lastSet.reps,
-          weight: lastSet.weight,
+          setCount: ex.sets.length,
+          reps: ex.sets[0].reps,
+          weight: ex.sets[0].weight,
         };
       }
     });
@@ -417,7 +422,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     _resetState();
   };
 
-  // ── history queries ───────────────────────────────────────────────────────
+  // ── history queries ─────────────────────────────────────────────
 
   const getCompletedWorkoutsByDate = (date: Date) => {
     const start = new Date(date);
@@ -460,7 +465,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const next = new Set(prev);
       if (next.has(exerciseId)) next.delete(exerciseId);
       else next.add(exerciseId);
-      AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(next))).catch(() => {
+      AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify([...next])).catch(() => {
         // Keep UI responsive even if persistence fails.
       });
       return next;
@@ -477,6 +482,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         clearWorkout,
         discardWorkout,
         completedWorkouts,
+        exerciseHistory,
         getCompletedWorkoutsByDate,
         getCompletedDatesThisMonth,
         getRecentWorkout,
@@ -495,8 +501,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         updateSettings,
         favoriteExerciseIds,
         toggleFavoriteExercise,
-      }}
-    >
+      }}>
       {children}
     </WorkoutContext.Provider>
   );

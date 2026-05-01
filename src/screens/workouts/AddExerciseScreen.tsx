@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Modal, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +18,15 @@ const EQUIPMENT_TYPES = [
   'Barbell',
   'Dumbbell',
   'Machine',
-  'Bodyweight',
   'Cable',
-  'Treadmill',
+  'Bodyweight',
+  'Kettlebell',
+  'Resistance Band',
+  'Smith Machine',
+  'EZ Bar',
+  'Medicine Ball',
+  'Stability Ball',
+  'Other',
 ];
 
 const EXERCISE_VIEW_TYPES = ['All Exercise', 'Favorite Exercise'] as const;
@@ -32,6 +38,25 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
   const styles = createStyles(appTheme);
   const { exercises } = useExercises();
   const { addExercises, setExercises, settings, favoriteExerciseIds, toggleFavoriteExercise } = useWorkout();
+  const exerciseHistory = useWorkout().exerciseHistory as Record<string, { setCount: number; reps: string; weight: string }>;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+        </TouchableOpacity>
+      ),
+      headerTitle: 'Add Exercise',
+      headerTitleStyle: { fontSize: 20, fontWeight: '700', color: theme.colors.text },
+      headerRight: () => (
+        <TouchableOpacity onPress={() => navigation.navigate('ExerciseForm', {})} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: '700' }}>Create</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, theme]);
+
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
   const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
@@ -74,19 +99,32 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
 
       const selected = toAdd[0];
       const uniqueInstanceId = `${selected.id}-${Date.now()}-${Math.random()}`;
+      const history = exerciseHistory[selected.id];
+      
+      // Determine sets based on history or default
+      const sets = history
+        ? Array.from({ length: history.setCount }, (_, i) => ({
+              id: `${uniqueInstanceId}-set-${i}`,
+              reps: history.reps,
+              weight: history.weight,
+              completed: false,
+              type: 'normal' as SetType,
+            }))
+        : Array.from({ length: selected.defaultSets ?? 3 }, (_, i) => ({
+              id: `${uniqueInstanceId}-set-${i}`,
+              reps: '',
+              weight: '',
+              completed: false,
+              type: 'normal' as SetType,
+            }));
+
       const replacement: LogExercise = {
         ...selected,
         id: uniqueInstanceId,
         originalExerciseId: selected.id,
         notes: '',
         restTimerDuration: ((selected as any).restTimerDuration ?? settings.defaultRestSeconds),
-        sets: Array.from({ length: selected.defaultSets }, (_, i) => ({
-          id: `${uniqueInstanceId}-set-${i}`,
-          reps: '',
-          weight: '',
-          completed: false,
-          type: 'normal' as SetType,
-        })),
+        sets, // Override the sets from selected
       };
 
       setExercises((prev) =>
@@ -100,149 +138,50 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
     navigation.goBack();
   };
 
-  const renderHeader = () => (
-    <>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add Exercise</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('ExerciseForm', {})} style={styles.createButton}>
-          <Text style={styles.createButtonText}>Create</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchSection}>
-        <Ionicons
-          name="search"
-          size={20}
-          color={theme.colors.muted}
-          style={styles.searchIcon}
-        />
-        <View style={styles.inputWrapper}>
-          <Input
-            placeholder="Search exercise"
-            value={search}
-            onChangeText={setSearch}
-            style={styles.searchInput}
-          />
-        </View>
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filtersContainer}>
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={() => setShowEquipmentModal(true)}
-        >
-          <Text style={styles.filterButtonText}>{selectedEquipment}</Text>
-          <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={() => setShowMuscleModal(true)}
-        >
-          <Text style={styles.filterButtonText}>{selectedMuscle}</Text>
-          <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
-        </TouchableOpacity>
-
-        {(selectedEquipment !== 'All Equipment' || selectedMuscle !== 'All Muscles') && (
-          <TouchableOpacity
-            style={styles.clearButton}
-            onPress={() => {
-              setSelectedEquipment('All Equipment');
-              setSelectedMuscle('All Muscles');
-            }}
-          >
-            <Ionicons name="close" size={16} color={theme.colors.muted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Section Title */}
-      <View style={styles.sectionHeader}>
-        <TouchableOpacity
-          style={styles.sectionTitleButton}
-          onPress={() => setShowExerciseViewModal(true)}
-        >
-          <Text style={styles.sectionTitle}>{selectedExerciseView}</Text>
-          <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
-    </>
-  );
+  // No renderHeader needed - using navigation.setOptions instead
 
   return (
-    <Screen padded={false} forceTopSafe>
+    <Screen>
       <FlatList
-        ListHeaderComponent={renderHeader}
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.exerciseItem,
-              selectedExercises.has(item.id) && styles.exerciseItemSelected
-            ]} 
-            activeOpacity={0.7}
+              selectedExercises.has(item.id) && styles.exerciseItemSelected,
+            ]}
             onPress={() => toggleExerciseSelection(item.id)}
           >
-            <View style={styles.exerciseContent}>
-              <View style={styles.exerciseImage}>
-                <Ionicons
-                  name="barbell"
-                  size={40}
-                  color={theme.colors.accent}
-                />
-              </View>
-              <View style={styles.exerciseInfo}>
-                <Text style={styles.exerciseName}>{item.name}</Text>
-                <Text style={styles.exerciseMuscle}>{item.muscleGroup}</Text>
-              </View>
+            <View style={styles.exerciseInfo}>
+              <Text style={styles.exerciseName}>{item.name}</Text>
+              <Text style={styles.exerciseDetail}>{item.muscleGroup} • {item.equipment}</Text>
             </View>
-            <View style={styles.exerciseActions}>
-              <TouchableOpacity
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity 
                 onPress={(e) => {
                   e.stopPropagation();
                   toggleFavoriteExercise(item.id);
                 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.favoriteButton}
               >
-                <Ionicons
-                  name={favoriteExerciseIds.has(item.id) ? 'heart' : 'heart-outline'}
-                  size={24}
-                  color={favoriteExerciseIds.has(item.id) ? theme.colors.accent : theme.colors.muted}
+                <Ionicons 
+                  name={favoriteExerciseIds.has(item.id) ? "star" : "star-outline"} 
+                  size={20} 
+                  color={favoriteExerciseIds.has(item.id) ? theme.colors.accent : theme.colors.muted} 
                 />
               </TouchableOpacity>
-              {selectedExercises.has(item.id) && (
-                <View style={styles.checkmark}>
-                  <Ionicons name="checkmark" size={20} color={theme.colors.accentText} />
-                </View>
+              {selectedExercises.has(item.id) ? (
+                <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent} />
+              ) : (
+                <View style={styles.checkbox} />
               )}
             </View>
           </TouchableOpacity>
         )}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
       />
-
-      {/* Floating Add Button */}
-      <View style={styles.floatingButtonContainer}>
-        <TouchableOpacity 
-          style={[
-            styles.addExercisesButton,
-            selectedExercises.size === 0 && styles.addExercisesButtonDisabled
-          ]}
-          onPress={handleAddExercises}
-          disabled={selectedExercises.size === 0}
-        >
-          <Text style={styles.addExercisesButtonText}>
-            + Add {selectedExercises.size || 0} exercise{selectedExercises.size !== 1 ? 's' : ''}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Equipment Modal */}
       <Modal
@@ -251,78 +190,69 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
         animationType="slide"
         onRequestClose={() => setShowEquipmentModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowEquipmentModal(false)}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Equipment</Text>
-              <TouchableOpacity onPress={() => setShowEquipmentModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
+            <Text style={styles.modalTitle}>Select Equipment</Text>
+            {EQUIPMENT_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.modalItem,
+                  selectedEquipment === type && styles.modalItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedEquipment(type);
+                  setShowEquipmentModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.modalItemText,
+                  selectedEquipment === type && styles.modalItemTextActive,
+                ]}>{type}</Text>
               </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={['All Equipment', ...EQUIPMENT_TYPES.slice(1)]}
-              keyExtractor={(item) => item}
-              contentContainerStyle={styles.modalListContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedEquipment(item);
-                    setShowEquipmentModal(false);
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{item}</Text>
-                  {selectedEquipment === item && (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-                  )}
-                </TouchableOpacity>
-              )}
-            />
+            ))}
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
-      {/* Muscle Modal */}
+      {/* Muscle Group Modal */}
       <Modal
         visible={showMuscleModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowMuscleModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMuscleModal(false)}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Muscle Group</Text>
-              <TouchableOpacity onPress={() => setShowMuscleModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
+            <Text style={styles.modalTitle}>Select Muscle Group</Text>
+            {MUSCLE_GROUPS.map((group) => (
+              <TouchableOpacity
+                key={group}
+                style={[
+                  styles.modalItem,
+                  selectedMuscle === group && styles.modalItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedMuscle(group);
+                  setShowMuscleModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.modalItemText,
+                  selectedMuscle === group && styles.modalItemTextActive,
+                ]}>{group}</Text>
               </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={['All Muscles', ...MUSCLE_GROUPS]}
-              keyExtractor={(item) => item}
-              contentContainerStyle={styles.modalListContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedMuscle(item as MuscleGroup | 'All Muscles');
-                    setShowMuscleModal(false);
-                  }}
-                >
-                  <View style={styles.modalItemIcon}>
-                    <Ionicons name="body" size={24} color={theme.colors.accent} />
-                  </View>
-                  <Text style={styles.modalItemText}>{item}</Text>
-                  {selectedMuscle === item && (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-                  )}
-                </TouchableOpacity>
-              )}
-            />
+            ))}
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Exercise View Modal */}
@@ -332,37 +262,46 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
         animationType="slide"
         onRequestClose={() => setShowExerciseViewModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowExerciseViewModal(false)}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Exercise View</Text>
-              <TouchableOpacity onPress={() => setShowExerciseViewModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
+            <Text style={styles.modalTitle}>Exercise View</Text>
+            {EXERCISE_VIEW_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.modalItem,
+                  selectedExerciseView === type && styles.modalItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedExerciseView(type);
+                  setShowExerciseViewModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.modalItemText,
+                  selectedExerciseView === type && styles.modalItemTextActive,
+                ]}>{type}</Text>
               </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={EXERCISE_VIEW_TYPES as readonly string[]}
-              keyExtractor={(item) => item}
-              contentContainerStyle={styles.modalListContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedExerciseView(item as ExerciseViewType);
-                    setShowExerciseViewModal(false);
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{item}</Text>
-                  {selectedExerciseView === item && (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-                  )}
-                </TouchableOpacity>
-              )}
-            />
+            ))}
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
+
+      {/* Add Button */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleAddExercises}
+        >
+          <Text style={styles.addButtonText}>
+            Add {selectedExercises.size} Exercise{selectedExercises.size !== 1 ? 's' : ''}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </Screen>
   );
 };
@@ -371,223 +310,192 @@ const createStyles = (appTheme: Theme) => {
   const theme = appTheme;
 
   return StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  cancelButton: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-  },
-  title: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
-  createButton: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-  },
-  createButtonText: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-  },
-  searchSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    backgroundColor: theme.colors.bg,
-  },
-  searchIcon: {
-    marginRight: theme.spacing.md,
-  },
-  inputWrapper: {
-    flex: 1,
-  },
-  searchInput: {
-    marginBottom: 0,
-  },
-  filtersContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.md,
-    alignItems: 'center',
-  },
-  filterButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  filterButtonText: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
-  },
-  clearButton: {
-    padding: theme.spacing.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: theme.colors.bg,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    maxHeight: '80%',
-    paddingTop: theme.spacing.md,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  modalTitle: {
-    fontSize: theme.font.sizeLg,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
-  modalListContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-  },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  modalItemIcon: {
-    marginRight: theme.spacing.md,
-  },
-  modalItemText: {
-    flex: 1,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
-  },
-  sectionHeader: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-  },
-  sectionTitleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: theme.spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
-  listContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: 90,
-  },
-  exerciseItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    marginVertical: theme.spacing.xs,
-    borderLeftWidth: 4,
-    borderLeftColor: 'transparent',
-  },
-  exerciseItemSelected: {
-    backgroundColor: theme.colors.bg,
-    borderLeftColor: theme.colors.accent,
-  },
-  exerciseContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  exerciseActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  checkmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  floatingButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderTopWidth: 0,
-    paddingBottom: 25,
-  },
-  addExercisesButton: {
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.md,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addExercisesButtonDisabled: {
-    opacity: 0.5,
-  },
-  addExercisesButtonText: {
-    color: theme.colors.accentText,
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightBold,
-  },
-  exerciseImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: theme.colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  exerciseInfo: {
-    flex: 1,
-  },
-  exerciseName: {
-    fontSize: theme.font.sizeMd,
-    fontWeight: theme.font.weightMedium,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  exerciseMuscle: {
-    fontSize: theme.font.sizeSm,
-    color: theme.colors.muted,
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    cancelButton: {
+      color: theme.colors.accent,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+      paddingVertical: 4,
+      minWidth: 60,
+    },
+    title: {
+      fontSize: theme.font.sizeLg,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      textAlign: 'center',
+      flex: 1,
+    },
+    createButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      minWidth: 60,
+      alignItems: 'flex-end',
+    },
+    createButtonText: {
+      color: theme.colors.accent,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+    },
+    searchSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.bg,
+    },
+    searchIcon: {
+      marginRight: theme.spacing.md,
+    },
+    inputWrapper: {
+      flex: 1,
+    },
+    searchInput: {
+      marginBottom: 0,
+    },
+    filtersContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      gap: theme.spacing.sm,
+    },
+    filterButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      gap: theme.spacing.sm,
+    },
+    filterButtonText: {
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.text,
+    },
+    clearButton: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.sm,
+    },
+    viewToggleButton: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    viewToggleActive: {
+      borderBottomColor: theme.colors.accent,
+    },
+    viewToggleText: {
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.muted,
+    },
+    viewToggleTextActive: {
+      color: theme.colors.accent,
+      fontWeight: theme.font.weightBold,
+    },
+    exerciseItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    exerciseItemSelected: {
+      backgroundColor: `${theme.colors.accent}20`,
+    },
+    exerciseInfo: {
+      flex: 1,
+    },
+    exerciseName: {
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightMedium,
+      color: theme.colors.text,
+    },
+    exerciseDetail: {
+      fontSize: theme.font.sizeSm,
+      color: theme.colors.muted,
+      marginTop: 2,
+    },
+    favoriteButton: {
+      padding: 4,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+    },
+    listContent: {
+      paddingBottom: 80,
+    },
+    bottomBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.bg,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    addButton: {
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.md,
+      alignItems: 'center',
+    },
+    addButtonText: {
+      color: theme.colors.accentText,
+      fontSize: theme.font.sizeMd,
+      fontWeight: theme.font.weightBold,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: theme.colors.surface,
+      borderTopLeftRadius: theme.radius.lg,
+      borderTopRightRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      maxHeight: '70%',
+    },
+    modalTitle: {
+      fontSize: theme.font.sizeLg,
+      fontWeight: theme.font.weightBold,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.md,
+    },
+    modalItem: {
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    modalItemSelected: {
+      backgroundColor: `${theme.colors.accent}20`,
+    },
+    modalItemText: {
+      fontSize: theme.font.sizeMd,
+      color: theme.colors.text,
+    },
+    modalItemTextActive: {
+      color: theme.colors.accent,
+      fontWeight: theme.font.weightBold,
+    },
   });
 };

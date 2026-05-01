@@ -7,13 +7,21 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkout } from '../../context/WorkoutContext';
 import { Theme } from '../../theme/theme';
 
 export const SettingsScreen = () => {
   const { settings, updateSettings } = useProfile();
   const { logout } = useAuth();
   const { isDark, setMode, theme: appTheme } = useTheme();
+  const { updateSettings: updateWorkoutSettings } = useWorkout();
   const styles = createStyles(appTheme);
+
+  const handleUnitChange = (v: boolean) => {
+    const newUnits = v ? 'imperial' : 'metric';
+    updateSettings({ units: newUnits });
+    updateWorkoutSettings({ weightUnit: newUnits === 'metric' ? 'kg' : 'lb' });
+  };
 
   return (
     <Screen scroll>
@@ -40,7 +48,7 @@ export const SettingsScreen = () => {
           </View>
           <Switch
             value={settings.units === 'imperial'}
-            onValueChange={(v) => updateSettings({ units: v ? 'imperial' : 'metric' })}
+            onValueChange={handleUnitChange}
             trackColor={{ false: appTheme.colors.border, true: appTheme.colors.accent }}
             thumbColor="#fff"
           />

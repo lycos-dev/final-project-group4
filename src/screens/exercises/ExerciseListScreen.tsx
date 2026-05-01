@@ -818,7 +818,40 @@ export const ExerciseListScreen = () => {
                 onPress={() => {
                   if (activeModal?.type === 'startRoutine') {
                     closeModal();
-                    clearWorkout();
+                    if (isActive) {
+                      Alert.alert(
+                        'Workout in progress',
+                        'You already have an active workout. Do you want to continue it or start a new one?',
+                        [
+                          {
+                            text: 'Continue Current',
+                            onPress: () => {
+                              setMinimized(false);
+                              nav.navigate('LogWorkout', {});
+                            },
+                          },
+                          {
+                            text: 'Start New',
+                            style: 'destructive',
+                            onPress: () => {
+                              clearWorkout();
+                              const exercisesToAdd = activeModal.routine.exercises.map((ex) => ({
+                                ...ex,
+                                routineSets: ex.routineSets || [],
+                              }));
+                              addExercises(exercisesToAdd);
+                              nav.navigate('LogWorkout', {
+                                exercisesToAdd: [],
+                                routineName: activeModal.routine.name,
+                                sourceScreen: 'ExploreRoutines',
+                              });
+                            },
+                          },
+                          { text: 'Cancel', style: 'cancel' },
+                        ],
+                      );
+                      return;
+                    }
                     const exercisesToAdd = activeModal.routine.exercises.map((ex) => ({
                       ...ex,
                       routineSets: ex.routineSets || [],

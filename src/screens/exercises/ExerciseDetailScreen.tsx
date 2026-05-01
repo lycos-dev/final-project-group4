@@ -287,22 +287,44 @@ export const ExerciseDetailScreen = () => {
       {/* ── Overview tab ─────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
         <View>
-          {/* Default Volume */}
-          <View style={styles.statsRow}>
-            <Card style={styles.stat}>
-              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>{exercise.defaultSets}</Text>
-              <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>SETS</Text>
-            </Card>
-            <Card style={styles.stat}>
-              <Text style={[styles.statValue, { color: appTheme.colors.accent }]}>—</Text>
-              <Text style={[styles.statLabel, { color: appTheme.colors.muted }]}>REPS</Text>
-            </Card>
-          </View>
+          {/* Exercise Info */}
+          <Card style={styles.overviewCard}>
+            <Text style={[styles.overviewSectionTitle, { color: appTheme.colors.text }]}>Exercise Info</Text>
+            <View style={styles.overviewInfoRow}>
+              <View style={styles.overviewInfoItem}>
+                <Ionicons name="body-outline" size={16} color={appTheme.colors.accent} />
+                <Text style={[styles.overviewInfoLabel, { color: appTheme.colors.muted }]}>MUSCLE GROUP</Text>
+                <Text style={[styles.overviewInfoValue, { color: appTheme.colors.text }]}>{exercise.muscleGroup}</Text>
+              </View>
+              <View style={styles.overviewInfoItem}>
+                <Ionicons name="barbell-outline" size={16} color={appTheme.colors.accent} />
+                <Text style={[styles.overviewInfoLabel, { color: appTheme.colors.muted }]}>EQUIPMENT</Text>
+                <Text style={[styles.overviewInfoValue, { color: appTheme.colors.text }]}>{exercise.equipment}</Text>
+              </View>
+            </View>
+          </Card>
 
-          {/* Quick description if no image */}
+          {/* Last Performed */}
+          {exerciseHistory.length > 0 && (
+            <Card style={[styles.overviewCard, { marginTop: appTheme.spacing.md }]}>
+              <Text style={[styles.overviewSectionTitle, { color: appTheme.colors.text }]}>Last Performed</Text>
+              <View style={styles.overviewHistoryRow}>
+                <Ionicons name="calendar-outline" size={16} color={appTheme.colors.accent} />
+                <Text style={[styles.overviewText, { color: appTheme.colors.muted }]}>
+                  {new Date(exerciseHistory[0].completedAt).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+            </Card>
+          )}
+
+          {/* Quick Summary from steps */}
           {exercise.steps.length > 0 && (
-            <Card style={styles.overviewPreview}>
-              <Text style={[styles.overviewPreviewTitle, { color: appTheme.colors.text }]}>Quick Summary</Text>
+            <Card style={[styles.overviewCard, { marginTop: appTheme.spacing.md }]}>
+              <Text style={[styles.overviewSectionTitle, { color: appTheme.colors.text }]}>Quick Summary</Text>
               <Text style={[styles.overviewPreviewText, { color: appTheme.colors.muted }]} numberOfLines={3}>
                 {exercise.steps[0]}
               </Text>
@@ -496,38 +518,52 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 
   // Overview tab
-  statsRow: {
+  overviewCard: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  overviewSectionTitle: {
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+    marginBottom: theme.spacing.sm,
+  },
+  overviewInfoRow: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
   },
-  stat: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing.lg },
-  statValue: {
-    color: theme.colors.accent,
-    fontSize: theme.font.sizeXxl,
-    fontWeight: theme.font.weightBlack,
+  overviewInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  statLabel: {
-    color: theme.colors.muted,
+  overviewInfoLabel: {
     fontSize: 10,
     fontWeight: theme.font.weightBold,
     letterSpacing: 1.2,
-    marginTop: 2,
   },
-  overviewPreview: {
-    gap: theme.spacing.sm,
-  },
-  overviewPreviewTitle: {
-    color: theme.colors.text,
+  overviewInfoValue: {
     fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
+  },
+  overviewHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  overviewText: {
+    fontSize: theme.font.sizeSm,
   },
   overviewPreviewText: {
     color: theme.colors.muted,
     fontSize: theme.font.sizeSm,
     lineHeight: 20,
   },
-  overviewPreviewLink: { marginTop: 2 },
+  overviewPreviewLink: { marginTop: theme.spacing.sm },
   overviewPreviewLinkText: {
     color: theme.colors.accent,
     fontSize: theme.font.sizeSm,

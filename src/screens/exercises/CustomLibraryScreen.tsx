@@ -36,14 +36,7 @@ export const CustomLibraryScreen = () => {
   // scrolls with the content. Only the floating back button stays pinned.
   const ListHeader = (
     <>
-      <LinearGradient
-        colors={[
-          `${theme.colors.accent}33`,
-          theme.colors.surfaceAlt,
-          theme.colors.surface,
-        ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+      <View
         style={[styles.header, { paddingTop: insets.top + 56 }]}
       >
         <View style={styles.heroOrb} />
@@ -61,24 +54,7 @@ export const CustomLibraryScreen = () => {
             Your personal collection of exercises
           </Text>
         </View>
-
-        <View style={styles.heroStats}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatValue}>{exercises.length}</Text>
-            <Text style={styles.heroStatLabel}>Exercises</Text>
-          </View>
-          <View style={styles.heroStatDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatValue}>0</Text>
-            <Text style={styles.heroStatLabel}>Workouts</Text>
-          </View>
-          <View style={styles.heroStatDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatValue}>0</Text>
-            <Text style={styles.heroStatLabel}>PRs Set</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      </View>
 
       <View style={styles.createSection}>
         <TouchableOpacity
@@ -103,6 +79,19 @@ export const CustomLibraryScreen = () => {
 
   return (
     <View style={styles.safe}>
+      {/* Full-screen gradient background */}
+      <LinearGradient
+        colors={[
+          `${theme.colors.accent}33`,
+          theme.colors.surfaceAlt,
+          theme.colors.surface,
+          theme.colors.bg,
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.bgGradient}
+      />
+
       {/* Sticky back button — sits above everything, always tappable */}
       <SafeAreaView edges={['top']} style={styles.backWrap} pointerEvents="box-none">
         <TouchableOpacity
@@ -176,6 +165,13 @@ const createStyles = (appTheme: typeof theme) => {
   const theme = appTheme;
   return StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
+  bgGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
 
   /* ── Sticky back button ────────────────────────────────────────────── */
   backWrap: {
@@ -233,22 +229,6 @@ const createStyles = (appTheme: typeof theme) => {
     marginBottom: 4,
   },
   heroSub: { fontSize: theme.font.sizeSm, color: theme.colors.muted },
-  heroStats: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: theme.radius.lg,
-    paddingVertical: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  heroStat: { flex: 1, alignItems: 'center' },
-  heroStatValue: {
-    fontSize: theme.font.sizeXl,
-    fontWeight: theme.font.weightBold,
-    color: theme.colors.text,
-  },
-  heroStatLabel: { fontSize: 11, color: theme.colors.muted, marginTop: 2 },
-  heroStatDivider: { width: 1, backgroundColor: theme.colors.border },
 
   /* ── Create button ─────────────────────────────────────────────────── */
   createSection: {
@@ -305,7 +285,7 @@ const createStyles = (appTheme: typeof theme) => {
   },
 
   /* ── List rows ─────────────────────────────────────────────────────── */
-  listContent: { paddingBottom: theme.spacing.xxl, backgroundColor: theme.colors.bg },
+  listContent: { paddingBottom: theme.spacing.xxl },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',

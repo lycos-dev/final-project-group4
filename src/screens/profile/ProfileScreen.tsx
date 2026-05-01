@@ -76,7 +76,7 @@ export const ProfileScreen = () => {
       {/* ── Stats Row ───────────────────────────────────────────────── */}
       <View style={styles.statsRow}>
         <StatCard icon="resize-outline"   value={heightLabel}       label={heightUnit} accent />
-        <StatCard icon="person-outline"  value={weightLabel}       label={`Body Weight (${weightUnit})`} />
+        <StatCard icon="person-outline"  value={`${weightLabel} ${weightUnit}`} label="Weight" />
         <StatCard icon="calendar-outline" value={`${profile.age}`} label="Age" />
       </View>
 

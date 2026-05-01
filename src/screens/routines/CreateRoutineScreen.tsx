@@ -537,7 +537,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
               restTimerDuration: ex.restTimerDuration ?? 0,
               sets: (ex.routineSets && ex.routineSets.length > 0) 
                 ? ex.routineSets 
-                : Array.from({ length: ex.defaultSets }, (_, i) => ({
+                : Array.from({ length: ex.defaultSets ?? 3 }, (_, i) => ({
                     id: `${key}-set-${i}`,
                     reps: '',
                     weight: '',

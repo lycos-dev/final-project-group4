@@ -24,6 +24,21 @@ import { required, numberInRange, maxLength } from '../../utils/validation';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 import { useTheme } from '../../context/ThemeContext';
 
+const EQUIPMENT_OPTIONS = [
+  'Barbell',
+  'Dumbbell',
+  'Machine',
+  'Cable',
+  'Bodyweight',
+  'Kettlebell',
+  'Resistance Band',
+  'Smith Machine',
+  'EZ Bar',
+  'Medicine Ball',
+  'Stability Ball',
+  'Other',
+];
+
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ExerciseForm'>;
 type R = RouteProp<RootStackParamList, 'ExerciseForm'>;
 
@@ -191,11 +206,10 @@ export const ExerciseFormScreen = () => {
   const [equipment, setEquipment]     = useState(editing?.equipment ?? '');
   const [imageUrl, setImageUrl]       = useState(editing?.imageUrl ?? '');
   const [stepsText, setStepsText]     = useState(stepsToText(editing?.steps ?? []));
-  const [sets, setSets]               = useState(String(editing?.defaultSets ?? 3));
-  const [reps, setReps]               = useState('');
 
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [muscleOpen, setMuscleOpen] = useState(false);
+  const [equipmentOpen, setEquipmentOpen] = useState(false);
 
   useLayoutEffect(() => {
     nav.setOptions({ title: editing ? 'Edit Exercise' : 'New Exercise' });
@@ -207,8 +221,6 @@ export const ExerciseFormScreen = () => {
       equipment: required(equipment) ?? maxLength(equipment, 40, 'Equipment'),
       imageUrl:  imageUrl ? maxLength(imageUrl, 1000, 'Image') : null,
       stepsText: stepsText ? maxLength(stepsText, 1000, 'Steps') : null,
-      sets:      numberInRange(sets, 1, 20, 'Sets'),
-      reps:      numberInRange(reps, 1, 200, 'Reps'),
     };
     setErrors(e);
     return Object.values(e).every((v) => !v);
@@ -222,7 +234,6 @@ export const ExerciseFormScreen = () => {
       equipment: equipment.trim(),
       imageUrl: imageUrl.trim() || undefined,
       steps: textToSteps(stepsText),
-      defaultSets: Number(sets),
     };
     if (editing) updateExercise({ ...editing, ...payload });
     else addExercise(payload);
@@ -267,16 +278,76 @@ export const ExerciseFormScreen = () => {
           placeholder="e.g. Bench Press"
           autoCapitalize="words"
         />
-        <Input
-          label="Equipment"
-          value={equipment}
-          onChangeText={setEquipment}
-          error={errors.equipment}
-          placeholder="e.g. Barbell, Dumbbell, Bodyweight…"
-          autoCapitalize="words"
-          hint="Type whatever you use — your choice"
-        />
+        <TouchableOpacity
+          style={[
+            styles.dropdown,
+            {
+              backgroundColor: appTheme.colors.surface,
+              borderColor: appTheme.colors.border,
+            },
+          ]}
+          onPress={() => setEquipmentOpen(true)}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.dropdownValue, { color: equipment ? appTheme.colors.text : appTheme.colors.muted }]}>
+            {equipment || 'Select equipment...'}
+          </Text>
+          <Ionicons name="chevron-down" size={18} color={appTheme.colors.muted} />
+        </TouchableOpacity>
       </Card>
+
+      <Modal
+        visible={equipmentOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEquipmentOpen(false)}
+      >
+        <Pressable
+          style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.55)' }]}
+          onPress={() => setEquipmentOpen(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalSheet,
+              { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.modalTitle, { color: appTheme.colors.text }]}>Choose equipment</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {EQUIPMENT_OPTIONS.map((eq) => {
+                const active = eq === equipment;
+                return (
+                  <TouchableOpacity
+                    key={eq}
+                    style={[
+                      styles.option,
+                      active && { backgroundColor: `${appTheme.colors.accent}14` },
+                    ]}
+                    onPress={() => {
+                      setEquipment(eq);
+                      setEquipmentOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        { color: appTheme.colors.text },
+                        active && { color: appTheme.colors.accent, fontWeight: appTheme.font.weightBold },
+                      ]}
+                    >
+                      {eq}
+                    </Text>
+                    {active && (
+                      <Ionicons name="checkmark" size={18} color={appTheme.colors.accent} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── Muscle Group dropdown ──────────────────────────────────────── */}
       <Text style={[styles.sectionLabel, styles.sectionGap]}>MUSCLE GROUP</Text>
@@ -410,34 +481,6 @@ export const ExerciseFormScreen = () => {
             ))}
           </View>
         )}
-      </Card>
-
-      {/* ── Default Volume ─────────────────────────────────────────────── */}
-      <Text style={[styles.sectionLabel, styles.sectionGap]}>DEFAULT VOLUME</Text>
-      <Card style={styles.card}>
-        <View style={styles.volumeRow}>
-          <View style={styles.volumeField}>
-            <Input
-              label="Sets"
-              value={sets}
-              onChangeText={setSets}
-              keyboardType="numeric"
-              error={errors.sets}
-              placeholder="3"
-            />
-          </View>
-          <View style={styles.volumeDivider} />
-          <View style={styles.volumeField}>
-            <Input
-              label="Reps"
-              value={reps}
-              onChangeText={setReps}
-              keyboardType="numeric"
-              error={errors.reps}
-              placeholder="10"
-            />
-          </View>
-        </View>
       </Card>
 
       <Button
