@@ -879,6 +879,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                           onChangeText={(val) =>
                             updateSet(exerciseKey, set.id, 'weight', val)
                           }
+                          placeholder="0"
                           keyboardType="decimal-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
@@ -888,6 +889,7 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
                           onChangeText={(val) =>
                             updateSet(exerciseKey, set.id, 'reps', val)
                           }
+                          placeholder="0"
                           keyboardType="number-pad"
                           placeholderTextColor={theme.colors.muted}
                         />
