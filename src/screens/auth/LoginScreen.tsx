@@ -184,14 +184,6 @@ export const LoginScreen = ({ navigation }: Props) => {
             />
           </View>
 
-          {/* ── Demo hint ─────────────────────────────────────────────── */}
-          <View style={styles.demoHint}>
-            <Text style={styles.demoText}>
-              Demo: <Text style={styles.demoValue}>admin@gmail.com</Text> /{' '}
-              <Text style={styles.demoValue}>password</Text>
-            </Text>
-          </View>
-
           {/* ── Footer ────────────────────────────────────────────────── */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
