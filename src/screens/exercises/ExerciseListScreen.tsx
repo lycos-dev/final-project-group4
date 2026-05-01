@@ -818,20 +818,22 @@ export const ExerciseListScreen = () => {
                 onPress={() => {
                   if (activeModal?.type === 'startRoutine') {
                     closeModal();
-                    if (isActive) {
+                    
+                    // Validation: Check if there's an active workout with exercises
+                    if (isActive && exercises.length > 0) {
                       Alert.alert(
                         'Workout in progress',
-                        'You already have an active workout. Do you want to continue it or start a new one?',
+                        'You already have an active workout with exercises. What would you like to do?',
                         [
                           {
-                            text: 'Continue Current',
+                            text: 'Continue Current Workout',
                             onPress: () => {
                               setMinimized(false);
                               nav.navigate('LogWorkout', {});
                             },
                           },
                           {
-                            text: 'Start New',
+                            text: 'Discard & Start Routine',
                             style: 'destructive',
                             onPress: () => {
                               clearWorkout();
@@ -852,6 +854,13 @@ export const ExerciseListScreen = () => {
                       );
                       return;
                     }
+                    
+                    // If active but no exercises, or no active workout, proceed with starting routine
+                    if (isActive && exercises.length === 0) {
+                      // Clear the empty workout and start routine
+                      clearWorkout();
+                    }
+                    
                     const exercisesToAdd = activeModal.routine.exercises.map((ex) => ({
                       ...ex,
                       routineSets: ex.routineSets || [],

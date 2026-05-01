@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, Alert, StatusBar } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
@@ -14,7 +14,7 @@ import { MUSCLE_GROUPS, MuscleGroup } from '../../types';
 type Props = NativeStackScreenProps<RootStackParamList, 'AddExercise'>;
 
 const EQUIPMENT_TYPES = [
-  'All Equipment',
+  'Choose Equipment',
   'Barbell',
   'Dumbbell',
   'Machine',
@@ -40,37 +40,26 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
   const { addExercises, setExercises, settings, favoriteExerciseIds, toggleFavoriteExercise } = useWorkout();
   const exerciseHistory = useWorkout().exerciseHistory as Record<string, { setCount: number; reps: string; weight: string }>;
 
+  // Header is now rendered within the Screen component
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
-        </TouchableOpacity>
-      ),
-      headerTitle: 'Add Exercise',
-      headerTitleStyle: { fontSize: 20, fontWeight: '700', color: theme.colors.text },
-      headerRight: () => (
-        <TouchableOpacity onPress={() => navigation.navigate('ExerciseForm', {})} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: '700' }}>Create</Text>
-        </TouchableOpacity>
-      ),
+      headerShown: false,
     });
-  }, [navigation, theme]);
+  }, [navigation]);
 
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All Muscles'>('All Muscles');
-  const [selectedEquipment, setSelectedEquipment] = useState('All Equipment');
+  const [selectedEquipment, setSelectedEquipment] = useState('Choose Equipment');
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMuscleModal, setShowMuscleModal] = useState(false);
   const [selectedExerciseView, setSelectedExerciseView] = useState<ExerciseViewType>('All Exercise');
-  const [showExerciseViewModal, setShowExerciseViewModal] = useState(false);
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     return exercises.filter((e) => {
       const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
       const matchesMuscle = selectedMuscle === 'All Muscles' || e.muscleGroup === selectedMuscle;
-      const matchesEquipment = selectedEquipment === 'All Equipment' || e.equipment === selectedEquipment;
+      const matchesEquipment = selectedEquipment === 'Choose Equipment' || e.equipment === selectedEquipment;
       const matchesFavorite = selectedExerciseView === 'All Exercise' || favoriteExerciseIds.has(e.id);
       return matchesSearch && matchesMuscle && matchesEquipment && matchesFavorite;
     });
@@ -141,7 +130,82 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
   // No renderHeader needed - using navigation.setOptions instead
 
   return (
-    <Screen>
+    <Screen forceTopSafe padded={false}>
+      <StatusBar barStyle={theme.dark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.bg} />
+      {/* Custom Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cancelButton}>
+          <Text style={[styles.cancelButtonText, { color: theme.colors.accent }]}>Cancel</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Add Exercise</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('ExerciseForm', {})} style={styles.createButton}>
+          <Text style={styles.createButtonText}>Create</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Input */}
+      <View style={styles.searchSection}>
+        <Ionicons name="search" size={20} color={theme.colors.muted} style={styles.searchIcon} />
+        <View style={styles.inputWrapper}>
+          <Input
+            placeholder="Search exercises..."
+            value={search}
+            onChangeText={setSearch}
+            style={styles.searchInput}
+          />
+        </View>
+      </View>
+
+      {/* Filter Buttons */}
+      <View style={styles.filtersContainer}>
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowMuscleModal(true)}
+        >
+          <Text style={styles.filterButtonText}>{selectedMuscle === 'All Muscles' ? 'All Muscles' : selectedMuscle}</Text>
+          <Ionicons name="chevron-down" size={16} color={theme.colors.muted} />
+        </TouchableOpacity>
+
+  <TouchableOpacity
+           style={styles.filterButton}
+           onPress={() => setShowEquipmentModal(true)}
+         >
+           <Text style={styles.filterButtonText}>{selectedEquipment === 'All Equipment' ? 'Choose Equipment' : selectedEquipment}</Text>
+           <Ionicons name="chevron-down" size={16} color={theme.colors.muted} />
+         </TouchableOpacity>
+
+        {selectedMuscle !== 'All Muscles' || selectedEquipment !== 'All Equipment' ? (
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={() => {
+              setSelectedMuscle('All Muscles');
+              setSelectedEquipment('All Equipment');
+            }}
+          >
+            <Ionicons name="close-circle" size={20} color={theme.colors.muted} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {/* Exercise View Toggle */}
+      <View style={styles.viewToggleContainer}>
+        {EXERCISE_VIEW_TYPES.map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[
+              styles.viewToggleButton,
+              selectedExerciseView === type && styles.viewToggleActive,
+            ]}
+            onPress={() => setSelectedExerciseView(type)}
+          >
+            <Text style={[
+              styles.viewToggleText,
+              selectedExerciseView === type && styles.viewToggleTextActive,
+            ]}>{type}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -255,42 +319,6 @@ export const AddExerciseScreen = ({ navigation, route }: Props) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Exercise View Modal */}
-      <Modal
-        visible={showExerciseViewModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowExerciseViewModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowExerciseViewModal(false)}
-        >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Exercise View</Text>
-            {EXERCISE_VIEW_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.modalItem,
-                  selectedExerciseView === type && styles.modalItemSelected,
-                ]}
-                onPress={() => {
-                  setSelectedExerciseView(type);
-                  setShowExerciseViewModal(false);
-                }}
-              >
-                <Text style={[
-                  styles.modalItemText,
-                  selectedExerciseView === type && styles.modalItemTextActive,
-                ]}>{type}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       {/* Add Button */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
@@ -318,6 +346,7 @@ const createStyles = (appTheme: Theme) => {
       paddingVertical: theme.spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.bg,
     },
     cancelButton: {
       color: theme.colors.accent,
@@ -385,6 +414,13 @@ const createStyles = (appTheme: Theme) => {
       justifyContent: 'center',
       alignItems: 'center',
       padding: theme.spacing.sm,
+    },
+    viewToggleContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
     },
     viewToggleButton: {
       flex: 1,
