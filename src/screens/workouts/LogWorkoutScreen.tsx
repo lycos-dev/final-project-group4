@@ -13,6 +13,7 @@ import {
   Alert,
   Switch,
   Vibration,
+  Keyboard,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -87,15 +88,15 @@ const getSetTypeOptions = (theme: Theme): { key: SetType | "remove"; label: stri
  *   45      → "0m 45s"
  *   60      → "1m 0s"
  *   90      → "1m 30s"
- *   3600    → "1h 0m"
- *   3665    → "1h 1m"
+ *   3600    → "1h 0m 0s"
+ *   3665    → "1h 1m 5s"
  */
 const formatDuration = (seconds: number): string => {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
   return `${m}m ${sec}s`;
 };
 
@@ -252,11 +253,10 @@ const createPickStyles = (theme: Theme) =>
 /* ─── Main screen ──────────────────────────────────────────────────────────── */
 
 export const LogWorkoutScreen = ({ navigation, route }: Props) => {
-  const { theme: appTheme } = useTheme();
-  const theme = appTheme;
-  const styles = createStyles(appTheme);
-  const pickStyles = useMemo(() => createPickStyles(appTheme), [appTheme]);
-  const setTypeOptions = useMemo(() => getSetTypeOptions(appTheme), [appTheme]);
+  const { theme, isDark } = useTheme();
+  const styles = createStyles(theme);
+  const pickStyles = useMemo(() => createPickStyles(theme), [theme]);
+  const setTypeOptions = useMemo(() => getSetTypeOptions(theme), [theme]);
 
   const {
     exercises,
@@ -302,15 +302,12 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // Duration edit modal
   const [durationOpen,  setDurationOpen]  = useState(false);
-  // Use refs for the wheel values so saveDurationModal always reads the
-  // latest committed value regardless of React batching / stale closures.
-  const draftHoursRef   = useRef(0);
-  const draftMinsRef    = useRef(0);
-  const [draftHours,    setDraftHours]    = useState(0);
-  const [draftMinutes,  setDraftMinutes]  = useState(0);
   const [draftStart,    setDraftStart]    = useState<Date>(new Date());
   const [showDate,      setShowDate]      = useState(false);
   const [showTime,      setShowTime]      = useState(false);
+  const [inputH, setInputH] = useState('0');
+  const [inputM, setInputM] = useState('0');
+  const [inputS, setInputS] = useState('0');
 
   // Set-type modal
   const [setTypeTarget, setSetTypeTarget] = useState<{ exerciseId: string; setId: string } | null>(null);
@@ -318,6 +315,45 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
   // Settings modal
   const [settingsOpen,   setSettingsOpen]   = useState(false);
   const [restPickerOpen, setRestPickerOpen] = useState(false);
+
+  // Sync duration inputs when modal opens
+  useEffect(() => {
+    if (durationOpen) {
+      const s = getElapsedSeconds();
+      setInputH(String(Math.floor(s / 3600)));
+      setInputM(String(Math.floor((s % 3600) / 60)));
+      setInputS(String(s % 60));
+    }
+  }, [durationOpen]);
+
+  const applyTypedDuration = () => {
+    const h = Math.max(0, parseInt(inputH, 10) || 0);
+    const m = Math.max(0, Math.min(59, parseInt(inputM, 10) || 0));
+    const s = Math.max(0, Math.min(59, parseInt(inputS, 10) || 0));
+    const total = h * 3600 + m * 60 + s;
+    setElapsedSeconds(total);
+    setDraftStart(new Date(Date.now() - total * 1000));
+  };
+
+  const handleHourChange = (text: string) => {
+    setInputH(text.replace(/[^0-9]/g, ''));
+  };
+
+  const handleMinuteChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    const num = parseInt(cleaned, 10);
+    if (cleaned === '' || isNaN(num) || num <= 59) {
+      setInputM(cleaned);
+    }
+  };
+
+  const handleSecondChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    const num = parseInt(cleaned, 10);
+    if (cleaned === '' || isNaN(num) || num <= 59) {
+      setInputS(cleaned);
+    }
+  };
 
   // ── Tick every second ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -594,22 +630,11 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
 
   // ── Duration modal helpers ────────────────────────────────────────────────
   const openDurationModal = () => {
-    const total = Math.max(0, elapsed);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    draftHoursRef.current = h;
-    draftMinsRef.current  = m;
-    setDraftHours(h);
-    setDraftMinutes(m);
     setDraftStart(startTime ? new Date(startTime) : new Date());
     setDurationOpen(true);
   };
 
   const saveDurationModal = () => {
-    // Read from refs - guaranteed to have the latest scrolled value
-    // even if React state hasn't flushed yet
-    const totalSec = draftHoursRef.current * 3600 + draftMinsRef.current * 60;
-    setElapsedSeconds(totalSec);
     setDurationOpen(false);
   };
 
@@ -977,65 +1002,122 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
         visible={durationOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setDurationOpen(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setDurationOpen(false); }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setDurationOpen(false)}>
-          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.modalOverlay} onPress={() => { Keyboard.dismiss(); setDurationOpen(false); }}>
+          <Pressable style={[styles.modalContent, styles.durationModalContent]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
             <View style={{ paddingBottom: theme.spacing.sm }}>
             <Text style={styles.modalTitle}>Workout time</Text>
 
             <Text style={styles.fieldLabel}>DURATION</Text>
             <View style={styles.durationValuePill}>
               <Text style={styles.durationValueText}>
-                {String(draftHours).padStart(2, "0")}h {String(draftMinutes).padStart(2, "0")}m
+                {formatDuration(elapsed)}
               </Text>
             </View>
-            <View style={styles.wheelCard}>
-              <View style={styles.wheelRow}>
-                <WheelPicker
-                  value={draftHours}
-                  onChange={(value) => {
-                    draftHoursRef.current = value;
-                    setDraftHours(value);
-                  }}
-                  count={24}
-                  suffix="hr"
-                  pickStyles={pickStyles}
-                />
-                <WheelPicker
-                  value={draftMinutes}
-                  onChange={(value) => {
-                    draftMinsRef.current = value;
-                    setDraftMinutes(value);
-                  }}
-                  count={60}
-                  suffix="min"
-                  pickStyles={pickStyles}
-                />
+
+            {/* Live elapsed time display - keeps updating */}
+            <View style={styles.liveTimeContainer}>
+              <Text style={styles.liveTimeLabel}>LIVE TIMER</Text>
+              <View style={styles.liveTimeDisplay}>
+                {(() => {
+                  const h = Math.floor(elapsed / 3600);
+                  const m = Math.floor((elapsed % 3600) / 60);
+                  const s = elapsed % 60;
+                  return (
+                    <>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(h).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>h</Text>
+                      </View>
+                      <Text style={styles.timeSeparator}>:</Text>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(m).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>m</Text>
+                      </View>
+                      <Text style={styles.timeSeparator}>:</Text>
+                      <View style={styles.timeBlock}>
+                        <Text style={styles.timeValue}>{String(s).padStart(2, "0")}</Text>
+                        <Text style={styles.timeUnit}>s</Text>
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
             </View>
 
-            <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
-            <View style={styles.startRow}>
-              <TouchableOpacity
-                style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowDate(true), 100); }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
-                <Text style={styles.startBtnText}>{draftStart.toDateString()}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.startBtn}
-                onPress={() => { setDurationOpen(false); setTimeout(() => setShowTime(true), 100); }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
-                <Text style={styles.startBtnText}>
-                  {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </Text>
+            {/* Duration input fields */}
+            <View style={styles.adjustSection}>
+              <Text style={styles.liveTimeLabel}>SET DURATION</Text>
+              <View style={styles.inputRow}>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputH}
+                    onChangeText={handleHourChange}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>h</Text>
+                </View>
+                <Text style={styles.timeSeparator}>:</Text>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputM}
+                    onChangeText={handleMinuteChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>m</Text>
+                </View>
+                <Text style={styles.timeSeparator}>:</Text>
+                <View style={styles.durationInputWrap}>
+                  <TextInput
+                    style={styles.durationInput}
+                    value={inputS}
+                    onChangeText={handleSecondChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.muted}
+                  />
+                  <Text style={styles.inputUnit}>s</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.applyBtn} onPress={applyTypedDuration} activeOpacity={0.7}>
+                <Text style={styles.applyBtnText}>Apply</Text>
               </TouchableOpacity>
             </View>
+
+             <Text style={[styles.fieldLabel, { marginTop: theme.spacing.lg }]}>START TIME</Text>
+             <View style={styles.startRow}>
+               <TouchableOpacity
+                 style={styles.startBtn}
+                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowDate(true); }}
+                 activeOpacity={0.7}
+               >
+                 <Ionicons name="calendar-outline" size={16} color={theme.colors.accent} />
+                 <Text style={styles.startBtnText}>
+                   {draftStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                 </Text>
+               </TouchableOpacity>
+               <Text style={styles.startSeparator}>,</Text>
+               <TouchableOpacity
+                 style={styles.startBtn}
+                 onPress={() => { Keyboard.dismiss(); setDurationOpen(false); setShowTime(true); }}
+                 activeOpacity={0.7}
+               >
+                 <Ionicons name="time-outline" size={16} color={theme.colors.accent} />
+                 <Text style={styles.startBtnText}>
+                   {draftStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                 </Text>
+               </TouchableOpacity>
+             </View>
 
             <TouchableOpacity
               style={[styles.pauseBtn, isPaused && styles.pauseBtnActive]}
@@ -1052,53 +1134,84 @@ export const LogWorkoutScreen = ({ navigation, route }: Props) => {
               </Text>
             </TouchableOpacity>
 
-            <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
-              <Button title="Cancel" variant="ghost" onPress={() => setDurationOpen(false)} style={{ flex: 1 }} />
-              <Button title="Save"   onPress={saveDurationModal} style={{ flex: 1 }} />
-            </View>
+            <TouchableOpacity
+              style={[styles.closeBtn]}
+              onPress={() => setDurationOpen(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.closeBtnText}>Done</Text>
+            </TouchableOpacity>
             </View>
           </Pressable>
         </Pressable>
       </Modal>
 
 
-      {/* Date picker — rendered directly (no custom Modal) so Android shows the native dialog */}
+      {/* Date picker modal with backdrop so user can dismiss it */}
       {showDate && (
-        <DateTimePicker
-          value={draftStart}
-          mode="date"
-          maximumDate={new Date()}
-          display={Platform.OS === "ios" ? "inline" : "default"}
-          onChange={(_e, d) => {
-            if (d) {
-              const next = new Date(draftStart);
-              next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-              if (next.getTime() > Date.now()) next.setTime(Date.now());
-              setDraftStart(next);
-            }
-            setShowDate(false);
-            setTimeout(() => setDurationOpen(true), 200);
-          }}
-        />
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowDate(false); setDurationOpen(true); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+            <View style={[styles.modalContent, styles.pickerModalContent]}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>Select Date</Text>
+                <TouchableOpacity onPress={() => { setShowDate(false); setDurationOpen(true); }}>
+                  <Text style={styles.pickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftStart}
+                mode="date"
+                maximumDate={new Date()}
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_e, d) => {
+                  if (d) {
+                    const next = new Date(draftStart);
+                    next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                    if (next.getTime() > Date.now()) {
+                      Alert.alert('Invalid Date', 'You cannot select a future date.');
+                      return;
+                    }
+                    setDraftStart(next);
+                  }
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
       )}
 
-      {/* Time picker — rendered directly so Android shows the native time dialog */}
+      {/* Time picker modal with backdrop so user can dismiss it */}
       {showTime && (
-        <DateTimePicker
-          value={draftStart}
-          mode="time"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_e, d) => {
-            if (d) {
-              const next = new Date(draftStart);
-              next.setHours(d.getHours(), d.getMinutes());
-              if (next.getTime() > Date.now()) next.setTime(Date.now());
-              setDraftStart(next);
-            }
-            setShowTime(false);
-            setTimeout(() => setDurationOpen(true), 200);
-          }}
-        />
+        <Modal transparent animationType="fade" onRequestClose={() => { setShowTime(false); setDurationOpen(true); }}>
+          <Pressable style={styles.modalOverlay} onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+            <View style={[styles.modalContent, styles.pickerModalContent]}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>Select Time</Text>
+                <TouchableOpacity onPress={() => { setShowTime(false); setDurationOpen(true); }}>
+                  <Text style={styles.pickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftStart}
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_e, d) => {
+                  if (d) {
+                    const next = new Date(draftStart);
+                    next.setHours(d.getHours(), d.getMinutes());
+                    if (next.getTime() > Date.now()) {
+                      Alert.alert('Invalid Time', 'You cannot select a future time.');
+                      return;
+                    }
+                    setDraftStart(next);
+                  }
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
       )}
 
       {/* ── Set-type picker ─────────────────────────────────────────────────── */}
@@ -1768,6 +1881,97 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: theme.font.sizeSm,
     letterSpacing: 0.4,
   },
+  liveTimeContainer: {
+    alignItems: "center",
+    marginVertical: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.bg,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  liveTimeLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 1.2,
+    marginBottom: theme.spacing.sm,
+  },
+  liveTimeDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  timeBlock: {
+    alignItems: "center",
+  },
+  timeValue: {
+    color: theme.colors.accent,
+    fontSize: 32,
+    fontWeight: theme.font.weightBold,
+    fontVariant: ["tabular-nums"],
+  },
+  timeUnit: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  timeSeparator: {
+    color: theme.colors.accent,
+    fontSize: 28,
+    fontWeight: theme.font.weightBold,
+    marginHorizontal: 4,
+  },
+  adjustSection: {
+    marginTop: theme.spacing.md,
+    alignItems: "center",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  durationInputWrap: {
+    alignItems: "center",
+  },
+  durationInput: {
+    width: 60,
+    height: 44,
+    textAlign: "center",
+    color: theme.colors.accent,
+    fontSize: 20,
+    fontWeight: theme.font.weightBold,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  inputUnit: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    fontWeight: theme.font.weightBold,
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  applyBtn: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.sm,
+    minWidth: 100,
+    alignItems: "center",
+  },
+  applyBtnText: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
   fieldLabel: {
     color: theme.colors.muted,
     fontSize: 11,
@@ -1784,7 +1988,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   wheelRow: { flexDirection: "row", gap: theme.spacing.md, justifyContent: "center" },
-  startRow: { flexDirection: "row", gap: theme.spacing.sm },
+  startRow: { flexDirection: "row", gap: theme.spacing.sm, alignItems: "center" },
+  startSeparator: { color: theme.colors.muted, fontSize: theme.font.sizeMd, fontWeight: theme.font.weightBold },
   startBtn: {
     flex: 1,
     flexDirection: "row",
@@ -1818,6 +2023,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   pauseBtnText: {
     color: theme.colors.text,
     fontSize: theme.font.sizeSm,
+    fontWeight: theme.font.weightBold,
+  },
+  closeBtn: {
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: "center",
+    marginTop: theme.spacing.md,
+  },
+  closeBtnText: {
+    color: theme.colors.accentText,
+    fontSize: theme.font.sizeMd,
     fontWeight: theme.font.weightBold,
   },
 
@@ -1877,6 +2094,25 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   reorderBtnDisabled: {
     opacity: 0.35,
+  },
+  pickerModalContent: {
+    padding: theme.spacing.md,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: theme.spacing.sm,
+  },
+  pickerTitle: {
+    color: theme.colors.text,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
+  },
+  pickerDoneText: {
+    color: theme.colors.accent,
+    fontSize: theme.font.sizeMd,
+    fontWeight: theme.font.weightBold,
   },
 
   /* Settings modal */
