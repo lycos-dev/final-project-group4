@@ -9,6 +9,8 @@ import {
   Modal,
   Animated,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -1109,38 +1111,40 @@ export const CreateRoutineScreen = ({ navigation, route }: Props) => {
         onRequestClose={closeModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIconWrap}>
-              <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
-            </View>
-            <Text style={styles.modalTitle}>New Folder</Text>
-            <TextInput
-              placeholder="Folder name"
-              value={newFolderName}
-              onChangeText={setNewFolderName}
-              style={styles.folderNameInput}
-              placeholderTextColor={theme.colors.muted}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnSecondary}
-                onPress={() => { setNewFolderName(''); closeModal(); }}
-              >
-                <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalBtnPrimary,
-                  !newFolderName.trim() && { opacity: 0.4 },
-                ]}
-                onPress={handleCreateFolder}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flexCentered}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalIconWrap}>
+                <Ionicons name="folder-open-outline" size={40} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.modalTitle}>New Folder</Text>
+              <TextInput
+                placeholder="Folder name"
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                style={styles.folderNameInput}
+                placeholderTextColor={theme.colors.muted}
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalBtnSecondary}
+                  onPress={() => { setNewFolderName(''); closeModal(); }}
+                >
+                  <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtnPrimary,
+                    !newFolderName.trim() && { opacity: 0.4 },
+                  ]}
+                  onPress={handleCreateFolder}
                 disabled={!newFolderName.trim()}
               >
                 <Text style={styles.modalBtnPrimaryText}>Create</Text>
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
